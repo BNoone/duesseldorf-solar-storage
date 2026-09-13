@@ -13,3 +13,21 @@ Currently an empty Leaflet map centred on Duesseldorf. Layers, data, and the sce
 ## What is built so far
 
 - `index.html` / `app.js`: the map itself. Plain HTML, vanilla JavaScript, Leaflet from a CDN, OpenStreetMap tiles. No build step, no framework.
+- `data/stadtteile.json`: per-Stadtteil roof potential, precomputed. Not yet drawn on the map.
+
+## Reproducing the data
+
+Requires Python 3 and the packages in `requirements.txt`.
+
+```bash
+pip install -r requirements.txt
+python3 scripts/fetch_solarkataster.py
+python3 scripts/fetch_stadtteile.py
+python3 scripts/build_stadtteile.py
+```
+
+- `fetch_solarkataster.py` downloads the Solarkataster NRW roof-potential shapefile for Duesseldorf (opengeodata.nrw.de, ~98 MB, skips if already present).
+- `fetch_stadtteile.py` downloads the 50 Duesseldorf Stadtteil boundaries (Open Data Duesseldorf, already in WGS84).
+- `build_stadtteile.py` sums Solarkataster facets by building (`geb_id`), keeps buildings at or above 10 kWp, reprojects to WGS84, spatial-joins buildings into Stadtteile, and writes `data/stadtteile.json`.
+
+Downloaded source files land in `data/raw/`, gitignored, not committed.
