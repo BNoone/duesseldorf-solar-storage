@@ -217,3 +217,74 @@ footer a {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
 }
+
+.control-panel {
+  position: absolute;
+  top: 90px;
+  left: 12px;
+  z-index: 1000;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+  padding: 10px 12px;
+  width: 210px;
+  font-size: 12px;
+  color: #1f2933;
+}
+
+.control-section-title {
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.control-note {
+  font-size: 11px;
+  color: #8a8f98;
+  margin-top: 6px;
+  border-top: 1px solid #ececea;
+  padding-top: 6px;
+}
+
+.storage-popup h3 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.storage-popup .planned-warning {
+  color: #a63603;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.storage-popup table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.storage-popup td {
+  padding: 2px 0;
+}
+
+.storage-popup td.label {
+  color: #6b7280;
+  padding-right: 14px;
+  white-space: nowrap;
+}
+
+.storage-popup td.value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}

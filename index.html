@@ -17,6 +17,19 @@
       <div class="rule" id="header-rule"></div>
     </header>
     <div id="map">
+      <div id="control-panel" class="control-panel">
+        <div class="control-section-title">LAYERS</div>
+        <label class="control-row">
+          <input type="checkbox" id="layer-storage-dus">
+          Large storage, Duesseldorf
+        </label>
+        <label class="control-row">
+          <input type="checkbox" id="layer-storage-nrw">
+          Large storage, NRW above 1 MW
+        </label>
+        <div class="control-note" id="nrw-zoom-hint" hidden>Zoom out to see NRW units; almost all of them are outside Duesseldorf.</div>
+        <div class="control-note" id="storage-note"></div>
+      </div>
       <div id="drilldown-panel" class="drilldown-panel" hidden>
         <button id="back-to-overview" class="back-button">&larr; Back to city overview</button>
         <h2 id="drilldown-title"></h2>

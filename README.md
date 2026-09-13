@@ -8,7 +8,7 @@ Full plan, decisions, and reasoning: [SCOPE.md](SCOPE.md). Read that first.
 
 https://bnoone.github.io/duesseldorf-solar-storage/
 
-Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp). Click one to see every qualifying building in it. The scenario panel and the PLZ layer for existing installations are not wired up yet.
+Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp). Click one to see every qualifying building in it. Toggle the storage layer to see Duesseldorf's large battery units and NRW's for scale. The scenario panel and the PLZ realization view are not wired up yet.
 
 ## What is built so far
 
@@ -20,6 +20,8 @@ Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp). Click one
 - The building drill-down: clicking a Stadtteil hides the choropleth, loads that Stadtteil's `data/roofs/<slug>.json` on demand, and draws every qualifying building. The 20 highest-yield buildings in that Stadtteil are filled gold, the rest orange, same dataset, no separate layer. A panel replaces the old Stadtteil popup, showing that Stadtteil's own numbers (qualifying buildings, roof potential, annual yield, battery potential) plus the suitability rule in one sentence, so the city-wide header stays visible and a visitor never loses context. A back button restores the citywide view. Clicking a building opens a popup with its roof potential, annual yield, specific yield, and facet count.
 - `data/stadtteile.json`: per-Stadtteil roof potential, precomputed. North-facing pitched facets are excluded before the building sum, see `build_stadtteile.py`.
 - `data/roofs/<slug>.json`: one file per Stadtteil, every qualifying building in it (geometry, kWp, kWh, capacity-weighted kwh_kwp, facet count, and whether it is one of the 20 highest-yield in that Stadtteil), loaded only when that Stadtteil is clicked, never all 50 at once. 50 files, 17 MB total, largest (Bilk) just under 1 MB. Buildings with more than 15 vertices after simplification (mostly large apartment blocks and factory complexes) are shown as a convex hull instead of their exact outline, since exact shape at that scale cost far more file size than it was worth.
+- The storage layer, off by default, toggled from the LAYERS panel: the 6 Duesseldorf storage units above 100 kW, plotted at their real coordinates, sized roughly by capacity so the planned 10 MW unit in PLZ 40549 is unmistakably the largest object on the layer. It is drawn with a dashed outline and low fill opacity rather than solid fill, and its popup opens with "Not yet built, In Planung" in place, because it has not been built. A second toggle shows NRW-wide units above 1 MW as small grey dots for scale, with a note that most of them sit outside Duesseldorf and need zooming out to see. A permanent note in the panel states the honest citywide line: Duesseldorf has 6,660 registered storage units totalling 50,512 kW, and only 28 of them carry usable coordinates, so the rest (home batteries) are never plotted as points.
+- `data/storage_duesseldorf.json` / `data/storage_nrw_large.json`: the two storage datasets above, precomputed from the local MaStR pull.
 
 ## Reproducing the data
 
@@ -29,14 +31,18 @@ Requires Python 3 and the packages in `requirements.txt`.
 pip install -r requirements.txt
 python3 scripts/fetch_solarkataster.py
 python3 scripts/fetch_stadtteile.py
+python3 scripts/fetch_mastr.py
 python3 scripts/build_stadtteile.py
 python3 scripts/build_roofs.py
+python3 scripts/build_storage.py
 ```
 
 - `fetch_solarkataster.py` downloads the Solarkataster NRW roof-potential shapefile for Duesseldorf (opengeodata.nrw.de, ~98 MB, skips if already present).
 - `fetch_stadtteile.py` downloads the 50 Duesseldorf Stadtteil boundaries (Open Data Duesseldorf, already in WGS84).
+- `fetch_mastr.py` bulk-downloads the MaStR storage and solar tables into a local SQLite database via `open-mastr`. Several GB, 15-30 minutes on a first run; skips the download if the database already has data.
 - `build_stadtteile.py` drops north-facing pitched facets, sums the rest by building (`geb_id`), keeps buildings at or above 10 kWp, reprojects to WGS84, spatial-joins buildings into Stadtteile, and writes `data/stadtteile.json`.
 - `build_roofs.py` does the same filtering and building sum, then dissolves each qualifying building's facets into one footprint, simplifies it, and writes one file per Stadtteil under `data/roofs/`.
-- `common.py` holds the constants and the exclusion rule shared by both build scripts, so the rule cannot drift between them.
+- `build_storage.py` queries the local MaStR database for Duesseldorf units above 100 kW, NRW units above 1 MW, and the Duesseldorf citywide unit count and combined capacity, and writes the two storage JSON files.
+- `common.py` holds the constants and the exclusion rule shared by the two roof-potential build scripts, so the rule cannot drift between them.
 
 Downloaded source files land in `data/raw/`, gitignored, not committed.

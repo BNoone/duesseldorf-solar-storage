@@ -9,6 +9,8 @@ const map = L.map("map").setView(DUESSELDORF_CENTER, DEFAULT_ZOOM);
 let stadtteilLayer = null;
 let cityBounds = null;
 let buildingLayer = null;
+let storageDusLayer = null;
+let storageNrwLayer = null;
 
 function slugify(name) {
   const replacements = { "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss" };
@@ -332,3 +334,114 @@ fetch("data/stadtteile.json")
     document.getElementById("header-totals").textContent = "Could not load stadtteile.json.";
     console.error(err);
   });
+
+// --- Storage layer ---------------------------------------------------------
+
+function formatKw(kw) {
+  return kw >= 1000 ? `${(kw / 1000).toLocaleString("en-US")} MW` : `${formatNumber(kw)} kW`;
+}
+
+function storageRadius(kw) {
+  return Math.min(4 + Math.sqrt(kw) * 0.3, 34);
+}
+
+function storageDusStyle(feature) {
+  const planned = feature.properties.status === "In Planung";
+  return {
+    radius: storageRadius(feature.properties.kw),
+    fillColor: planned ? "#a63603" : "#2b6cb0",
+    fillOpacity: planned ? 0.25 : 0.75,
+    color: planned ? "#a63603" : "#1a4971",
+    weight: planned ? 2 : 1,
+    dashArray: planned ? "4,4" : null,
+  };
+}
+
+function storageNrwStyle() {
+  return {
+    radius: 4,
+    fillColor: "#6b7280",
+    fillOpacity: 0.5,
+    color: "#3f4650",
+    weight: 1,
+  };
+}
+
+function storagePopupHtml(props) {
+  const planned = props.status === "In Planung";
+  return `
+    <div class="storage-popup">
+      <h3>${formatKw(props.kw)} storage unit</h3>
+      ${planned ? '<div class="planned-warning">Not yet built, In Planung</div>' : ""}
+      <table>
+        <tr><td class="label">Capacity</td><td class="value">${formatKw(props.kw)}</td></tr>
+        <tr><td class="label">Chemistry</td><td class="value">${props.chemistry}</td></tr>
+        <tr><td class="label">Commissioning</td><td class="value">${props.commissioning}</td></tr>
+        <tr><td class="label">Status</td><td class="value">${props.status}</td></tr>
+      </table>
+    </div>`;
+}
+
+function storageNrwPopupHtml(props) {
+  return `
+    <div class="storage-popup">
+      <h3>${formatKw(props.kw)} storage unit</h3>
+      <table>
+        <tr><td class="label">Capacity</td><td class="value">${formatKw(props.kw)}</td></tr>
+        <tr><td class="label">Chemistry</td><td class="value">${props.chemistry}</td></tr>
+        <tr><td class="label">Landkreis</td><td class="value">${props.landkreis}</td></tr>
+        <tr><td class="label">Status</td><td class="value">${props.status}</td></tr>
+      </table>
+    </div>`;
+}
+
+fetch("data/storage_duesseldorf.json")
+  .then((res) => res.json())
+  .then((data) => {
+    storageDusLayer = L.geoJSON(data, {
+      pointToLayer: (feature, latlng) => L.circleMarker(latlng, storageDusStyle(feature)),
+      onEachFeature: (feature, layer) => {
+        layer.bindPopup(storagePopupHtml(feature.properties), { className: "storage-popup" });
+      },
+    });
+    // Draw the largest (planned) unit last within the layer so it always
+    // renders on top of the smaller built units, since it is meant to be
+    // the most prominent object on this layer.
+    storageDusLayer.eachLayer((l) => {
+      if (l.feature.properties.is_largest) l.bringToFront();
+    });
+
+    document.getElementById("storage-note").textContent = data.properties.citywide_note;
+
+    document.getElementById("layer-storage-dus").addEventListener("change", (e) => {
+      if (e.target.checked) {
+        storageDusLayer.addTo(map);
+      } else {
+        map.removeLayer(storageDusLayer);
+      }
+    });
+  })
+  .catch((err) => console.error(err));
+
+fetch("data/storage_nrw_large.json")
+  .then((res) => res.json())
+  .then((data) => {
+    storageNrwLayer = L.geoJSON(data, {
+      pointToLayer: (feature, latlng) => L.circleMarker(latlng, storageNrwStyle(feature)),
+      onEachFeature: (feature, layer) => {
+        layer.bindPopup(storageNrwPopupHtml(feature.properties), { className: "storage-popup" });
+      },
+    });
+
+    document.getElementById("layer-storage-nrw").addEventListener("change", (e) => {
+      const hint = document.getElementById("nrw-zoom-hint");
+      if (e.target.checked) {
+        storageNrwLayer.addTo(map);
+        hint.hidden = false;
+      } else {
+        map.removeLayer(storageNrwLayer);
+        hint.hidden = true;
+      }
+    });
+  })
+  .catch((err) => console.error(err));
