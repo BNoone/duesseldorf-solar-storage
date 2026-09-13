@@ -37,6 +37,7 @@ have been run first (both are cheap to re-run; they skip if already done).
 """
 
 import json
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -44,28 +45,15 @@ import geopandas as gpd
 import pandas as pd
 from pyproj import Transformer
 
-BASE = Path(__file__).resolve().parent.parent
-SOLARKATASTER_SHP = (
-    BASE / "data" / "raw" / "solarkataster"
-    / "Solarkataster-Potentiale-Photovoltaik_05111000_Duesseldorf.shp"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common import (  # noqa: E402
+    BASE, SOLARKATASTER_SHP, STADTTEILE_GEOJSON, MIN_KWP_PER_BUILDING,
+    BATTERY_KWH_PER_KWP, REGISTERED_PV_KWP, QUALIFYING_RULE_SENTENCE,
+    exclude_north_facing_pitched,
 )
-STADTTEILE_GEOJSON = BASE / "data" / "raw" / "stadtteile_wgs84.geojson"
+
 OUT_PATH = BASE / "data" / "stadtteile.json"
-
-MIN_KWP_PER_BUILDING = 10.0
-BATTERY_KWH_PER_KWP = 1.5
 SIMPLIFY_TOLERANCE_DEG = 0.0003  # roughly 25-30 m at this latitude
-
-# Registered PV capacity, Duesseldorf, from the local MaStR pull (see
-# scripts/fetch_solarkataster.py's sibling MaStR scripts, not yet added to
-# this repo; queried directly against ~/.open-MaStR/data/sqlite/open-mastr.db
-# dated 2026-07-10):
-#   SELECT SUM(Bruttoleistung) FROM solar_extended
-#   WHERE Landkreis = 'Duesseldorf' AND Energietraeger = 'Solare Strahlungsenergie'
-# Result: 161,327.6 kWp across 11,804 units. Used only for the citywide
-# realization rate; the PLZ-level existing-PV layer in SCOPE.md section 3
-# gets its own script when that layer is built.
-REGISTERED_PV_KWP = 161_327.6
 
 
 def load_qualifying_buildings():
@@ -75,10 +63,7 @@ def load_qualifying_buildings():
     )
     print(f"Facets loaded: {len(facets):,}")
 
-    north_pitched = (facets["dachtyp"] == "geneigt") & (facets["himmel_kat"] == "Nord")
-    print(f"North-facing pitched facets excluded: {north_pitched.sum():,} "
-          f"({facets.loc[north_pitched, 'kw'].sum():,.1f} kWp)")
-    facets = facets[~north_pitched].copy()
+    facets = exclude_north_facing_pitched(facets)
 
     facets["cx"] = facets.geometry.centroid.x
     facets["cy"] = facets.geometry.centroid.y
@@ -180,8 +165,7 @@ def write_geojson(result):
             "source_stadtteile": "Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025",
             "qualifying_rule": "kWp >= 10 summed per building (geb_id), not per facet; "
                                 "north-facing pitched roof faces excluded, flat roofs always count",
-            "qualifying_rule_sentence": "North-facing roof faces are excluded. "
-                                         "Flat roofs count, since panels on them are angled south.",
+            "qualifying_rule_sentence": QUALIFYING_RULE_SENTENCE,
             "battery_potential_formula": "roof potential (kWp) x 1.5 kWh/kWp, HTW Berlin sizing recommendation",
             "registered_pv_kwp": REGISTERED_PV_KWP,
             "generated_at": date.today().isoformat(),
