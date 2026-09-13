@@ -43,6 +43,17 @@ MIN_KWP_PER_BUILDING = 10.0
 BATTERY_KWH_PER_KWP = 1.5
 SIMPLIFY_TOLERANCE_DEG = 0.0003  # roughly 25-30 m at this latitude
 
+# Registered PV capacity, Duesseldorf, from the local MaStR pull (see
+# scripts/fetch_solarkataster.py's sibling MaStR scripts, not yet added to
+# this repo; queried directly against ~/.open-MaStR/data/sqlite/open-mastr.db
+# dated 2026-07-10):
+#   SELECT SUM(Bruttoleistung) FROM solar_extended
+#   WHERE Landkreis = 'Duesseldorf' AND Energietraeger = 'Solare Strahlungsenergie'
+# Result: 161,327.6 kWp across 11,804 units. Used only for the citywide
+# realization rate; the PLZ-level existing-PV layer in SCOPE.md section 3
+# gets its own script when that layer is built.
+REGISTERED_PV_KWP = 161_327.6
+
 
 def load_qualifying_buildings():
     facets = gpd.read_file(
@@ -150,6 +161,7 @@ def write_geojson(result):
             "source_stadtteile": "Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025",
             "qualifying_rule": "kWp >= 10 summed per building (geb_id), not per facet",
             "battery_potential_formula": "roof potential (kWp) x 1.5 kWh/kWp, HTW Berlin sizing recommendation",
+            "registered_pv_kwp": REGISTERED_PV_KWP,
             "generated_at": date.today().isoformat(),
         },
         "features": features,

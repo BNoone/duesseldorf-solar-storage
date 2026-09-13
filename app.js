@@ -75,15 +75,24 @@ function popupHtml(props) {
     </div>`;
 }
 
-function updateHeaderTotals(features) {
+function updateHeaderTotals(features, properties) {
   const totalBuildings = features.reduce((sum, f) => sum + f.properties.qualifying_buildings, 0);
   const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
   const totalMwh = features.reduce((sum, f) => sum + f.properties.total_mwh, 0);
 
-  document.getElementById("header-totals").innerHTML =
+  let html =
     `<strong>${formatNumber(totalBuildings)}</strong> qualifying buildings &middot; ` +
     `<strong>${formatNumber(totalKwp)} kWp</strong> roof potential &middot; ` +
     `<strong>${formatNumber(totalMwh)} MWh</strong>/year`;
+
+  if (properties.registered_pv_kwp) {
+    const realizationPct = (properties.registered_pv_kwp / totalKwp) * 100;
+    html +=
+      ` &middot; <strong>${formatNumber(properties.registered_pv_kwp)} kWp</strong> registered, ` +
+      `<strong>${realizationPct.toFixed(1)}%</strong> of potential built`;
+  }
+
+  document.getElementById("header-totals").innerHTML = html;
 }
 
 function updateFooter(properties) {
@@ -142,7 +151,7 @@ fetch("data/stadtteile.json")
     map.fitBounds(geojsonLayer.getBounds(), { padding: [10, 10] });
 
     buildLegend(breaks, minValue, maxValue);
-    updateHeaderTotals(data.features);
+    updateHeaderTotals(data.features, data.properties);
     updateFooter(data.properties);
   })
   .catch((err) => {
