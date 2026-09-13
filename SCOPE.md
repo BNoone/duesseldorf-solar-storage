@@ -260,7 +260,7 @@ Verified in iteration 1 or in this session. Re-check before any of them reach th
 | Duesseldorf theoretical rooftop potential, per-facet, kWp>=10 | 1,156,084 kWp | Superseded, see below |
 | Duesseldorf theoretical rooftop potential, per-building, kWp>=10 summed by `geb_id` | **1,683,379 kWp** | Current |
 | Duesseldorf annual yield, per-building | **1,301,697 MWh/year** | Current |
-| Registered PV (MaStR) | 161,365 kWp | Current |
+| Registered PV (MaStR) | 161,328 kWp | Current, corrected from v2's 161,365 (fresh query against the same local MaStR pull, Landkreis Duesseldorf, Energietraeger Solare Strahlungsenergie) |
 | Realization, per-facet basis | 14.0% | Superseded |
 | Realization, per-building basis | **9.6%** | Current |
 | Duesseldorf roof facets in cadastre | 305,939, EPSG:25832 | Current |

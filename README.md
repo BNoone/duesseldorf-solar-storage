@@ -13,7 +13,8 @@ Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp). The scena
 ## What is built so far
 
 - `index.html` / `app.js` / `style.css`: the map. Plain HTML, vanilla JavaScript, Leaflet from a CDN, OpenStreetMap tiles. No build step, no framework.
-- The Stadtteil layer: filled polygons coloured by total roof potential (kWp), a quantile-binned sequential scale (ColorBrewer Oranges, 5 classes) rather than a linear one, since Bilk's 89,536 kWp against Knittkuhl's 3,863 kWp would flatten a linear scale's middle. A legend shows the actual kWp value at each bin edge. Hovering a Stadtteil highlights it and shows its name; clicking opens a popup with qualifying buildings, roof potential, annual yield, and battery potential. The header totals and footer pull date are read live from `data/stadtteile.json`, not hardcoded.
+- The Stadtteil layer: filled polygons coloured by total roof potential (kWp), a quantile-binned sequential scale (ColorBrewer Oranges, 5 classes) rather than a linear one, since Bilk's 89,536 kWp against Knittkuhl's 3,863 kWp would flatten a linear scale's middle. A legend shows the actual kWp value at each bin edge. Hovering a Stadtteil highlights it and shows its name; clicking opens a popup with qualifying buildings, roof potential, annual yield, and battery potential. The header totals, the realization rate, and the footer pull date are read live from `data/stadtteile.json`, not hardcoded.
+- The header also shows the citywide realization rate: registered PV (MaStR) divided by roof potential. Currently 9.6%, the most interesting number the project produces.
 - `data/stadtteile.json`: per-Stadtteil roof potential, precomputed.
 
 ## Reproducing the data
