@@ -5,13 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Duesseldorf Solar + Storage Potential</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <style>
-    html, body { height: 100%; margin: 0; padding: 0; }
-    #map { height: 100%; width: 100%; }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="map"></div>
+  <div id="app">
+    <header>
+      <h1>Duesseldorf Solar + Storage Potential</h1>
+      <div class="totals" id="header-totals">Loading citywide totals...</div>
+    </header>
+    <div id="map"></div>
+    <footer id="footer">
+      Sources: Solarkataster NRW (opengeodata.nrw.de) and Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025.
+    </footer>
+  </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="app.js"></script>
 </body>
