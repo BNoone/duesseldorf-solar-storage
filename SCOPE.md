@@ -1,36 +1,49 @@
-# Düsseldorf Solar + Storage Potential Map · Scope v2
+# Duesseldorf Solar + Storage Potential Map · Scope v2.1
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
+**Amended:** 2026-09-13 (v2.1, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
 ---
 
+## 0. Changelog
+
+**v2.1 (2026-09-13):** three changes, made together after a data check.
+
+1. **Qualifying threshold moved from per-facet to per-building.** A typical single-family roof splits across two facets of 5-6 kWp each; neither cleared the old 10 kWp facet filter, so the house was excluded even though it would obviously carry a 10+ kWp system. Facets are now summed by `geb_id` (the Solarkataster's own building key) before the 10 kWp test. This raised total potential from 1,156,084 kWp to 1,683,379 kWp and dropped realization from 14.0% to 9.6%. The old per-facet figures are superseded, not deleted; see section 11.
+2. **Geography split into three tiers**, replacing the single PLZ layer: building (`geb_id`) for the suitability math, Stadtteil for the potential map and drill-down, PLZ for existing installations and realization. Driven by a data check (section 9) showing MaStR coordinate coverage is a function of unit size, not randomly missing.
+3. **Storage reframed toward grid-scale.** Home batteries remain visible as context; the interesting number is large units, contrasted against an NRW-wide layer, because Duesseldorf's own fleet above 1 MW is a single unit, and it is not yet built.
+
 ## 1. What this is
 
-**One web page. One map. A few toggles.** A visitor opens it, sees Düsseldorf, and can answer one question: *how much rooftop solar could this city have, and how much battery storage would that call for?*
+**One web page. One map. A few toggles.** A visitor opens it, sees Duesseldorf, and can answer one question: *how much rooftop solar could this city have, and how much battery storage would that call for?*
 
 It is a portfolio piece for hiring managers. It has to load fast on a laptop, look competent, and every number on it has to trace to a named public source. It is not a research paper, not a planning tool, and not a simulation.
+
+**What the site actually models:** a scenario in which every suitable rooftop in Duesseldorf carries solar feeding storage, then the heatwave PV derate and the AC demand surge are applied on top of that built-out scenario. This scenario runs on the Solarkataster and ERA5 alone and needs no registry data at all. Existing installations, from MaStR, are shown alongside as context, to compute a realization rate, never as an input to the potential model itself.
 
 ## 2. The page
 
 ```
 +--------------------------------------------------+
-|  Düsseldorf Solar + Storage Potential             |
+|  Duesseldorf Solar + Storage Potential            |
 +---------------------------+----------------------+
 |                           |  LAYERS              |
 |                           |  [x] Solar potential |
 |         THE MAP           |  [ ] Existing PV     |
-|    (PLZ areas, click      |  [ ] Existing BESS   |
-|     one to drill into     |                      |
-|     its best roofs)       |  SCENARIOS           |
+|    (Stadtteil shapes,     |  [ ] Existing BESS   |
+|     click one to drill    |  [ ] Large storage   |
+|     into its buildings;   |      (NRW, >1 MW)    |
+|     PLZ shapes for        |                      |
+|     existing installs)    |  SCENARIOS           |
 |                           |  [ ] Heatwave: PV    |
 |                           |      derate          |
 |                           |  [ ] Heatwave: AC    |
 |                           |      demand surge    |
-|                           |  Built out: 14% /    |
+|                           |  Built out: 10% /    |
 |                           |      30% / 50%       |
 |                           |                      |
 |                           |  NUMBERS             |
@@ -41,52 +54,97 @@ It is a portfolio piece for hiring managers. It has to load fast on a laptop, lo
 
 One map. Layer checkboxes decide what is drawn on it. The scenario panel changes the numbers. Nothing navigates away.
 
-## 3. The data model: PLZ first, buildings second
+## 3. The data model: three geographies, buildings first
 
-This is the core of the project. **Potential is the subject, not inventory.**
+Potential is the subject, not inventory. That has not changed. What changed is which shape carries which fact, because the data will not honestly support one shape carrying all of them.
 
-### Level 1 · Postcode (PLZ)
+### Why three geographies, not one
 
-Every Düsseldorf postcode gets one shape on the map carrying:
+| Geography | Carries | Why this one |
+|---|---|---|
+| **Building** (`geb_id`) | The suitability test itself. All potential math starts here | The Solarkataster's own key. Every roof facet belongs to exactly one building, and a building is what someone would actually put a PV system on |
+| **Stadtteil** (50 neighbourhoods) | Solar potential map, and the building drill-down | Solarkataster geometry is exact, so a point-in-polygon join of each building's centroid to a Stadtteil shape is reliable for every building, small or large. Boundaries: [Open Data Duesseldorf, Stadtteile Duesseldorf](https://opendata.duesseldorf.de/dataset/stadtteile-d%C3%BCsseldorf) |
+| **Postcode (PLZ)** | Existing PV, existing BESS, realization | MaStR carries a `Postleitzahl` field for effectively every Duesseldorf unit (100% non-null, both PV and storage), but real coordinates for only a small, size-biased slice: see the check below. PLZ, read directly off the registry's own field, is the only geography the registry data can honestly support without silently dropping most small residential systems. Boundaries: [NRW Postleitzahlen, Rhein-Kreis Neuss Open Data](https://opendata.rhein-kreis-neuss.de/explore/dataset/nrw-postleitzahlen/export/) or the [yetzt/postleitzahlen](https://github.com/yetzt/postleitzahlen) mirror, both OpenStreetMap-derived |
+
+**The check that forced this split** (MaStR pull, local database dated 2026-07-10):
+
+- PV coordinate coverage by size, Duesseldorf: <10 kWp 0% (8,969 units), 10-30 kWp 0% (2,425 units), 30-100 kWp 85.8% (295 units), 100 kWp-1 MWp 100% (107 units), >=1 MWp 100% (8 units). Overall 368 of 11,804 units, 3.1%.
+- Storage coordinate coverage, Duesseldorf: 28 of 6,660 units, 0.4%, and the pattern is the same, coordinates exist almost only above 100 kW.
+- The Solarkataster itself carries no field indicating an existing installation anywhere. Checked the full attribute dictionary (`Metadaten_PV_Dach_2024_09_opendata.xlsx`): every field describes roof geometry, orientation, irradiance, or a theoretical yield at a fixed 21.7% efficiency. It is a pure potential cadastre. Realization can only ever come from joining against MaStR, never from the cadastre alone.
+
+Coordinate coverage is not a random gap, it is a step function of installation size. A spatial join of existing installations to Stadtteil shapes would keep the handful of commercial and grid-scale systems and silently erase almost the entire residential fleet, which is the majority of units. PLZ, addressed through the registry's own `Postleitzahl` field rather than through coordinates, does not have this problem.
+
+**PLZ and Stadtteil boundaries cross and do not nest.** A Stadtteil can span parts of several postcodes, and a postcode can span parts of several Stadtteile. The two layers are never compared shape-to-shape, and no attempt is made to overlay one on the other. Each answers its own question: Stadtteil says how much a neighbourhood's rooftops could generate, PLZ says what is already registered near there and how big the existing battery fleet is.
+
+**Potential is still computed once, at building level, then aggregated up two separate, non-comparable ways:** once by Stadtteil, for the headline potential map and the drill-down; once by PLZ, purely so the PLZ shapes can show a realization rate (existing PV, from the registry's `Postleitzahl` field, divided by potential, aggregated to the same PLZ boundaries via the same reliable building-centroid join) and a battery-potential figure to sit next to existing BESS. Both aggregations use the same building-level numbers and the same join method; they differ only in which boundary set they sum into, because Stadtteil and PLZ slice the city differently. Summed across all Stadtteile or across all PLZ, both return the same citywide total.
+
+### The suitability rule: building level, not facet level
+
+**A roof counts as suitable if its building clears 10 kWp when all of that building's Solarkataster facets are summed, and ranking for the highlighted set is by that building's yield-weighted specific yield (`kwh_kwp`, computed as the building's total annual yield divided by its total kWp).**
+
+Never per facet. A typical pitched roof splits into two or more facets of a few kWp each; testing 10 kWp against a single facet excluded most ordinary houses even though the building as a whole clearly qualifies.
+
+Checked against the Duesseldorf Solarkataster (305,939 facets, 142,377 distinct buildings, EPSG:25832):
+
+- 58,631 buildings clear 10 kWp when summed by `geb_id`
+- Total potential: 1,683,379 kWp
+- Total annual yield: 1,301,697 MWh/year
+- Realization against 161,365 kWp registered (MaStR): **9.6%**
+
+These figures supersede the per-facet numbers from v2 (49,812 facets, 1,156,084 kWp, 14.0%). The per-facet numbers do not reach the site.
+
+### Level: Stadtteil
+
+Every Duesseldorf Stadtteil gets one shape carrying:
 
 | Field | Meaning |
 |---|---|
-| Roof potential (kWp) | Sum of suitable roof area in this PLZ |
-| Annual yield (MWh) | What that PV would generate in a normal year |
-| Suitable roofs (count) | How many buildings clear the suitability bar |
-| Existing PV (kWp) | What is already registered here, from MaStR |
-| Realization rate (%) | Existing ÷ potential |
-| **Battery potential (kWh)** | Derived from PV potential, see below |
-| Existing BESS (kWh, units) | What batteries are already registered here |
+| Roof potential (kWp) | Sum of qualifying buildings' potential in this Stadtteil |
+| Annual yield (MWh) | What that PV would generate in a normal year (2025) |
+| Suitable buildings (count) | How many buildings in this Stadtteil clear the 10 kWp building-level bar |
 
-### Level 2 · Buildings, on click
+Existing PV, existing BESS, and realization are not carried on the Stadtteil shape, for the reason above. They live on the PLZ shape.
 
-Clicking a PLZ zooms in and draws **only the best roofs**, not all of them. Most roofs are not worth showing: wrong orientation, too shaded, too small.
+### Level: buildings, on click
 
-**The suitability rule is two fields, both already in the cadastre:**
+Clicking a Stadtteil zooms in and draws **every qualifying building** in it, loaded one Stadtteil at a time, not the whole city at once. The 20 highest-yield buildings in that Stadtteil (by building-level `kwh_kwp`) are highlighted.
 
-1. Rank by the Solarkataster's own specific yield (`kwh_kwp`)
-2. Require kWp ≥ 10
+**Aggregates (the Stadtteil's roof potential, annual yield, and building count) always count every qualifying building, never only the highlighted 20.** Summing only the highlighted set would understate the neighbourhood's real potential by more than an order of magnitude in any Stadtteil with more than 20 qualifying buildings, which is most of them.
 
-Orientation, tilt and shading are deliberately *not* separate filters. The cadastre's specific yield already reflects all three, so filtering on them again would double-count and make the rule harder to explain.
+The page must say, in one sentence, what "suitable" and "highlighted" mean. A visitor who cannot see the rule cannot trust the map.
 
-The page must say, in one sentence, what "suitable" means. A visitor who cannot see the rule cannot trust the map.
+**Sentence for the page:** *"A building counts as suitable if its roof facets together could carry at least 10 kWp; the 20 shown in gold are the highest-yield buildings in this neighbourhood, but every qualifying building counts toward the totals."*
+
+### Level: postcode (PLZ)
+
+Every Duesseldorf postcode gets one shape carrying:
+
+| Field | Meaning |
+|---|---|
+| Roof potential (kWp) | Same building-level potential, aggregated to PLZ instead of Stadtteil |
+| Battery potential (kWh) | Derived from that PLZ's potential, see below |
+| Existing PV (kWp) | Registered here per MaStR's `Postleitzahl` field |
+| Realization (%) | Existing PV ÷ this PLZ's potential |
+| Existing BESS (kWh, units) | All registered batteries here, MaStR `Postleitzahl` |
+| Large BESS (count, kWh) | The subset of existing BESS above 100 kW, called out separately, see section 4 |
 
 ### Battery potential, and where the number comes from
 
-Battery potential is derived from solar potential, using the published HTW Berlin sizing recommendation: **usable storage capacity should not exceed 1.5 kWh per 1 kW of PV output**. That is an upper bound for sensible home storage, not a forecast.
+Battery potential is derived from solar potential, using the published HTW Berlin sizing recommendation: **usable storage capacity should not exceed 1.5 kWh per 1 kW of PV output**. That is an upper bound for sensible storage sizing, not a forecast, and not a count of home batteries. It expresses how much storage a given amount of solar justifies in any form factor, whether that is many small home batteries or one large system serving the same rooftops.
 
-So: `battery potential (kWh) = roof potential (kWp) × 1.5`
+So: `battery potential (kWh) = roof potential (kWp) x 1.5`
 
 Labelled on the page as "sensible upper bound, HTW Berlin sizing recommendation", with the link. If a better source turns up, swap the coefficient in one place.
 
 Source: [HTW Berlin, Empfehlungen zur Auslegung von Solarstromspeichern](https://solar.htw-berlin.de/publikationen/auslegung-von-solarstromspeichern/)
 
-### Existing BESS, shown as postcode clusters
+### Existing BESS, shown as postcode clusters, large units called out
 
-Only 29 of 6,672 Düsseldorf battery units carried usable coordinates in the last pull. So existing batteries are shown **aggregated to their postcode**, matching the potential layer. A cluster reading "PLZ 40233 · 214 units · 2.9 MWh" is honest. A dot pretending to be one battery at an invented address is not.
+Only 28 of 6,660 Duesseldorf battery units carry usable coordinates. So existing batteries are shown **aggregated to their postcode**. A cluster reading "PLZ 40233 - 214 units - 2.9 MWh" is honest. A dot pretending to be one battery at an invented address is not.
 
-**Blocking check:** MaStR must carry a usable postcode or `Ort` field for units without coordinates. Verify this before building anything in this layer.
+**Storage focus shifts to larger units.** Home batteries are context, not the interesting part of the story. Checked: Duesseldorf has exactly 6 storage units above 100 kW, and all 6 carry real coordinates (coordinate coverage is not the problem at this size). Only 1 exceeds 1 MW, a 10 MW unit at PLZ 40549, and its `EinheitBetriebsstatus` is "In Planung", not yet built. Duesseldorf's own grid-scale battery fleet is, honestly, not built yet.
+
+That is why an **NRW-wide layer showing only units above 1 MW** is added, for contrast: it gives a visitor something to compare Duesseldorf's near-empty grid-scale tier against, using the same MaStR pull, filtered to `Bruttoleistung > 1000` across all of NRW rather than just Duesseldorf.
 
 ## 4. The scenario panel
 
@@ -96,7 +154,7 @@ Three controls. Each one changes numbers that are already on screen.
 
 Hot panels produce less. Applies a temperature derate using a standard module temperature coefficient and a cell temperature model.
 
-**The heatwave is a real, named event, not an abstraction.** Germany broke its all-time national temperature record on three consecutive days in late June 2026 (41.3 °C Saarbrücken on the 26th, 41.5 °C Drewitz on the 27th, 41.7 °C Coschen on the 28th), and NRW was affected enough that regional rail was suspended for six hours. Pull the actual Düsseldorf ERA5 temperature and irradiance for that window and derate against it.
+**The heatwave is a real, named event, not an abstraction.** Germany broke its all-time national temperature record on three consecutive days in late June 2026 (41.3 degC Saarbruecken on the 26th, 41.5 degC Drewitz on the 27th, 41.7 degC Coschen on the 28th), and NRW was affected enough that regional rail was suspended for six hours. Duesseldorf's own ERA5 peak fell in the same window: 38.2 degC on the 26th, 36.4 degC on the 27th, 32.0 degC on the 28th, against 27.1 degC on the 29th as the heat broke.
 
 The page then says something concrete: *"During the record heat of 26 to 28 June 2026, these rooftops would have produced X% less than a normal summer day."*
 
@@ -106,11 +164,11 @@ Source: [2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_he
 
 Evening demand rises during heat. Applies a demand multiplier.
 
-There is no Düsseldorf consumption dataset. Either find one citable source for the multiplier, or ship the toggle labelled "illustrative assumption, not measured" with the assumption written next to it. Both are acceptable. Silently inventing a number is not.
+There is no Duesseldorf consumption dataset. Either find one citable source for the multiplier, or ship the toggle labelled "illustrative assumption, not measured" with the assumption written next to it. Both are acceptable. Silently inventing a number is not.
 
-### Control 3 · Built out at 14% / 30% / 50%
+### Control 3 · Built out at 10% / 30% / 50%
 
-Steps, not a free slider. Shows what the city's generation and battery potential look like if more of the rooftop potential were actually built. 14% is today's measured realization rate.
+Steps, not a free slider. Shows what the city's generation and battery potential look like if more of the rooftop potential were actually built. 10% is today's measured realization rate (9.6%, rounded), recomputed at building level, see section 3. This replaces v2's 14%, which was the per-facet figure and is now superseded.
 
 ## 5. Two weather years, on purpose
 
@@ -146,11 +204,11 @@ Why: a build step is a machine that turns source files into different files befo
 
 Any request implying one of these is a stop-and-ask:
 
-- **Economics.** No capex, no tariffs, no payback, no ROI. The v1 figures (500 €/kWh, 0.22 €/kWh) were placeholders and are retired.
+- **Economics.** No capex, no tariffs, no payback, no ROI. The v1 figures (500 EUR/kWh, 0.22 EUR/kWh) were placeholders and are retired.
 - **Multi-year climate averaging.** Two named years, as above.
 - **Dispatch simulation.** Charge/discharge schedules, round-trip efficiency, 2h vs 4h sizing. Retired from v1.
-- **Load profiles and self-consumption modelling.** Note that BDEW standard load profiles are publicly available, so this is excluded by choice, not by impossibility. It is excluded because it doubles the modelling surface for a portfolio piece that is about potential, not operation. If View-level demand ever matters, revisit with eyes open.
-- Anything outside Düsseldorf.
+- **Load profiles and self-consumption modelling.** Note that BDEW standard load profiles are publicly available, so this is excluded by choice, not by impossibility. It is excluded because it doubles the modelling surface for a portfolio piece that is about potential, not operation. If load-level demand ever matters, revisit with eyes open.
+- Anything outside Duesseldorf.
 - PyPSA-Eur, Zensus 2022, district cooling, wider penetration scenario sets. See glossary in section 12.
 - Any frontend framework, bundler, or build tooling.
 
@@ -158,31 +216,30 @@ Any request implying one of these is a stop-and-ask:
 
 1. **One page, one map.** Layers are checkboxes, scenarios are a side panel. No multi-page navigation.
 2. **Potential is the subject.** Existing installations are context, shown to compute a realization rate.
-3. **PLZ is the primary unit.** Buildings appear only on drill-down, and only the suitable ones.
-4. **Battery potential = PV potential × 1.5 kWh/kWp**, cited to HTW Berlin, labelled as an upper bound.
-5. **2025 for annual figures, June 2026 for the heatwave.** Both named on the page.
-6. **Repo:** new public repository named `duesseldorf-solar-storage`, cloned to `~/Desktop/Pet_Projects/`. The v1 static site is copied in under `/v1/` so the old click-through stays reachable. The v1 repo stays private and archived and is not linked from the README, because a private link is a 404 for visitors.
-7. **Static snapshot.** The site states when the data was pulled and does not pretend to update.
-8. **No "Layer 1-4", no "Thread A/B"** anywhere, including filenames and commit messages.
+3. **Building (`geb_id`) is the unit of suitability.** A roof qualifies at 10 kWp summed across all of its facets, never per facet. Stadtteil is the display geography for potential and the building drill-down. PLZ is the display geography for existing PV, existing BESS, and realization, because that is the only geography MaStR's coordinate coverage can honestly support. The two geographies cross, do not nest, and are never compared shape-to-shape.
+4. **Battery potential = PV potential x 1.5 kWh/kWp**, cited to HTW Berlin, labelled as an upper bound on storage a given amount of solar justifies, not a home-battery count.
+5. **Storage focus is grid-scale and community-scale.** Home batteries stay visible as PLZ-level context. Existing large units (>100 kW) are called out separately, and an NRW-wide layer of units above 1 MW gives Duesseldorf's own near-empty grid-scale tier (1 unit, not yet built) something to be seen against.
+6. **2025 for annual figures, June 2026 for the heatwave.** Both named on the page.
+7. **Repo:** new public repository named `duesseldorf-solar-storage`, cloned to `~/Desktop/Pet_Projects/`. The v1 static site is copied in under `/v1/` so the old click-through stays reachable. The v1 repo stays private and archived and is not linked from the README, because a private link is a 404 for visitors.
+8. **Static snapshot.** The site states when the data was pulled and does not pretend to update.
+9. **No "Layer 1-4", no "Thread A/B"** anywhere, including filenames and commit messages.
 
 ## 9. Open questions
 
 ### Decided
 
 - **Repo name:** `duesseldorf-solar-storage`
-- **Roof suitability rule:** rank by the cadastre's own specific yield (`kwh_kwp`), and require kWp ≥ 10. Two fields, both already in the Solarkataster. Orientation, tilt and shading are not separate filters, because the cadastre's specific yield already reflects all three.
-  Sentence for the page, to refine once the numbers are in: *"A roof counts as suitable if the Solarkataster's own yield figure puts it in the top band and it could carry at least 10 kWp."*
+- **Postcode field in MaStR:** yes. `Postleitzahl` and `Ort` are both 100% non-null for Duesseldorf, across 6,660 storage units and 11,804 PV units. Coordinates are the sparse field (0.4% for storage, 3.1% for PV), and sparse in a size-biased way, not randomly. This is the finding that forced the three-geography split in section 3.
+- **Roof suitability rule:** building level (`geb_id` sum), not facet level, kWp >= 10, ranked by that building's yield-weighted `kwh_kwp`. See section 3 for the full reasoning and the corrected potential figures.
+- **Suitable-roof display rule:** every qualifying building drawn per Stadtteil, on click, one Stadtteil at a time; the top 20 per Stadtteil by `kwh_kwp` highlighted; aggregates always count every qualifying building, never only the top 20.
+- **Storage geography and focus:** PLZ for existing BESS, large units (>100 kW) called out, an NRW-wide >1 MW layer added for contrast, battery potential reframed away from a home-battery count.
 
 ### Still open, for Claude Code to research and recommend
 
-1. **Postcode field in MaStR.** Do units without coordinates carry a usable PLZ or `Ort` field, and for how many of the 6,672 Düsseldorf units? **Check this first**, it decides whether section 3's cluster layer is possible at all.
-   → _(pending)_
-2. **Where the "top band" cut sits.** Top N per PLZ, top X%, or an absolute `kwh_kwp` threshold? Needs the actual distribution first. The answer must keep the map readable, so it is a design constraint as much as a data one.
-   → _(pending)_
-3. **PV derate coefficient.** Which module temperature coefficient and which cell temperature model, with the source named.
-   → _(pending)_
-4. **AC surge multiplier.** One citable source, or ship the toggle labelled as an illustrative assumption.
-   → _(pending)_
+1. **PV derate coefficient.** Recommended: NOCT-based cell temperature model, `T_cell = T_ambient + (NOCT - 20) / 800 x G` (Sandia PVPMC), with a -0.47%/degC temperature coefficient for a standard module (NREL PVWatts V5 Manual, Table 6). Not yet confirmed.
+   -> _(pending confirmation)_
+2. **AC surge multiplier.** Recommended: label as an illustrative assumption sourced to arXiv 2507.13534 (heatwave-driven AC adoption modeling for Germany, calibrated against July 2025, Bundesnetzagentur load data), rather than a Duesseldorf measurement. Not yet confirmed.
+   -> _(pending confirmation)_
 
 ## 10. Definition of done
 
@@ -193,19 +250,27 @@ Any request implying one of these is a stop-and-ask:
 - **The README describes what the code actually does, updated in the same commit as the code.** Meaning: never ship a behaviour change and a docs change as two separate commits. Iteration 1 died because the README described "Layer 3 and Layer 4" while the session was building "Thread A and Thread B". Same commit, always, and the drift cannot start.
 - **No file, function, or commit message uses a name for a piece of work that this file does not use.** Meaning: the vocabulary in this document is the only vocabulary. If something is called the "scenario panel" here, it is not called "the widget" in a filename and "the sidebar" in a commit. One name per thing, everywhere, or in six weeks nobody can tell whether two names mean one feature or two.
 
-## 11. Carry-over facts from v1
+## 11. Carry-over facts
 
-Verified in iteration 1. Re-check before any of them reach the site.
+Verified in iteration 1 or in this session. Re-check before any of them reach the site.
 
-| Fact | Value |
-|---|---|
-| Düsseldorf theoretical rooftop potential | 1,156,084 kWp (pitched + flat, ≥10 kWp) |
-| Registered vs theoretical | 161,365 kWp, so 14.0% realized |
-| Düsseldorf roof facets in cadastre | 305,939, EPSG:25832 |
-| NRW battery units | ~511,000 (4.82 GW / 7.07 GWh, 99.6% lithium) |
-| NRW PV units | ~1,163,000 (16.0 GWp) |
-| Düsseldorf BESS units | 6,672, of which 29 carry usable coordinates |
-| ERA5 2025 vs cadastre baseline | +17.1% mean, 0.28% SD across 100 roofs |
+| Fact | Value | Status |
+|---|---|---|
+| Duesseldorf theoretical rooftop potential, per-facet, kWp>=10 | 1,156,084 kWp | Superseded, see below |
+| Duesseldorf theoretical rooftop potential, per-building, kWp>=10 summed by `geb_id` | **1,683,379 kWp** | Current |
+| Duesseldorf annual yield, per-building | **1,301,697 MWh/year** | Current |
+| Registered PV (MaStR) | 161,365 kWp | Current |
+| Realization, per-facet basis | 14.0% | Superseded |
+| Realization, per-building basis | **9.6%** | Current |
+| Duesseldorf roof facets in cadastre | 305,939, EPSG:25832 | Current |
+| Duesseldorf distinct buildings in cadastre (`geb_id`) | 142,377 total, 58,631 qualifying | Current |
+| Duesseldorf BESS units | 6,660, of which 28 carry usable coordinates | Current, corrected from v2's 6,672/29 |
+| Duesseldorf BESS units above 100 kW | 6, all 6 with usable coordinates | Current |
+| Duesseldorf BESS units above 1 MW | 1 (10 MW, PLZ 40549, status "In Planung") | Current |
+| Duesseldorf PV units by coordinate coverage | 0% below 30 kWp (11,394 units), 85.8-100% at 30 kWp and above (410 units) | Current |
+| NRW battery units | ~511,000 (4.82 GW / 7.07 GWh, 99.6% lithium) | Re-check before use |
+| NRW PV units | ~1,163,000 (16.0 GWp) | Re-check before use |
+| ERA5 2025 vs cadastre baseline | +17.1% mean, 0.28% SD across 100 roofs | Re-check before use; direction (ERA5 above cadastre) contradicted the v1 script's own stated expectation, worth a fresh look before relying on it for the derate baseline |
 
 ## 12. Glossary of things deliberately excluded
 
@@ -217,8 +282,10 @@ Verified in iteration 1. Re-check before any of them reach the site.
 ## 13. Known traps
 
 - `open-mastr` pulls stay filtered: `db.download(data=["storage","solar"])`. Unfiltered is multi-GB and 30+ minutes.
-- MaStR usable capacity (kWh) is null at unit level. The `VerknuepfteEinheit → EinheitMastrNummer` join is mandatory.
+- MaStR usable capacity (kWh) is null at unit level. The `VerknuepfteEinheit -> EinheitMastrNummer` join is mandatory.
 - Filter MaStR to NRW in SQL, not in pandas. The national tables are too large to load whole.
+- MaStR coordinate coverage is a function of unit size, not a random gap. Do not spatial-join existing installations to Stadtteil, or the residential majority silently disappears. Use `Postleitzahl` directly instead.
+- The Solarkataster carries no existing-installation field of any kind. Realization always requires the MaStR join, never the cadastre alone.
 - `gh auth login --insecure-storage` is required. The sandboxed process cannot reach the macOS Keychain.
 - The repo lives at `~/Desktop/Pet_Projects/duesseldorf-solar-storage`. If iCloud Desktop sync is on, git can occasionally hit a file-locking error there; pausing iCloud sync from the menu bar clears it.
 - Solarkataster NRW ships in EPSG:25832. Leaflet wants WGS84. Reproject in Python, once, not in the browser.
@@ -227,7 +294,7 @@ Verified in iteration 1. Re-check before any of them reach the site.
 
 - One vocabulary, as defined in section 10.
 - A commit that changes behaviour updates the README in the same commit.
-- Narrow before wide: one PLZ, then all of them.
+- Narrow before wide: one Stadtteil, then all of them.
 - Feature branches, confirmed before merging to main.
 - Every number that reaches the site traces to a script and a named public source.
 - No em-dashes in any copy, in the repo or on the site.
@@ -239,3 +306,5 @@ Verified in iteration 1. Re-check before any of them reach the site.
 - [HTW Berlin · Empfehlungen zur Auslegung von Solarstromspeichern](https://solar.htw-berlin.de/publikationen/auslegung-von-solarstromspeichern/)
 - [Open-Meteo · Historical Weather API (ERA5)](https://open-meteo.com/en/docs/historical-weather-api)
 - [Wikipedia · 2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_heatwaves)
+- [Open Data Duesseldorf · Stadtteile Duesseldorf](https://opendata.duesseldorf.de/dataset/stadtteile-d%C3%BCsseldorf)
+- [NRW Postleitzahlen, Rhein-Kreis Neuss Open Data](https://opendata.rhein-kreis-neuss.de/explore/dataset/nrw-postleitzahlen/export/)
