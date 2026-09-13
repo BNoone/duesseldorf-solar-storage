@@ -18,7 +18,17 @@
     </header>
     <div id="map">
       <div id="control-panel" class="control-panel">
-        <div class="control-section-title">LAYERS</div>
+        <div class="control-section-title">VIEW</div>
+        <label class="control-row">
+          <input type="radio" name="view" id="view-stadtteil" checked>
+          Solar potential by neighbourhood
+        </label>
+        <label class="control-row">
+          <input type="radio" name="view" id="view-plz">
+          Realization by postcode
+        </label>
+        <div class="control-note">Potential is shown by neighbourhood (Stadtteil); existing installations by postcode (PLZ), the finest location the national registry publishes for systems under 30 kWp.</div>
+        <div class="control-section-title" style="margin-top:10px">LAYERS</div>
         <label class="control-row">
           <input type="checkbox" id="layer-storage-dus">
           Large storage, Duesseldorf

@@ -7,10 +7,19 @@ const CHOROPLETH_COLORS = ["#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"
 const map = L.map("map").setView(DUESSELDORF_CENTER, DEFAULT_ZOOM);
 
 let stadtteilLayer = null;
+let stadtteilLabels = null;
 let cityBounds = null;
 let buildingLayer = null;
 let storageDusLayer = null;
 let storageNrwLayer = null;
+let plzLayer = null;
+let plzData = null;
+let stadtteilValues = null;
+let stadtteilBreaks = null;
+
+// ColorBrewer "Greens", 5-class sequential single-hue scale, distinct from
+// the Oranges used for solar potential so the two views never look alike.
+const PLZ_COLORS = ["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"];
 
 function slugify(name) {
   const replacements = { "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss" };
@@ -47,11 +56,12 @@ function quantileBreaks(values, nClasses) {
   return breaks;
 }
 
-function colorForValue(value, breaks) {
+function colorForValue(value, breaks, colors) {
+  colors = colors || CHOROPLETH_COLORS;
   for (let i = 0; i < breaks.length; i++) {
-    if (value <= breaks[i]) return CHOROPLETH_COLORS[i];
+    if (value <= breaks[i]) return colors[i];
   }
-  return CHOROPLETH_COLORS[CHOROPLETH_COLORS.length - 1];
+  return colors[colors.length - 1];
 }
 
 function formatNumber(n) {
@@ -104,25 +114,30 @@ function polygonAreaAndCentroid(geometry) {
   return { totalArea, centroid: best.centroid };
 }
 
-function buildLegend(breaks, minValue, maxValue) {
-  const legend = L.control({ position: "bottomright" });
-  legend.onAdd = function () {
-    const div = L.DomUtil.create("div", "legend");
-    const edges = [minValue, ...breaks, maxValue];
-    let html = '<div class="legend-title">Roof potential (kWp)</div>';
-    for (let i = 0; i < CHOROPLETH_COLORS.length; i++) {
-      const lo = formatNumber(edges[i]);
-      const hi = formatNumber(edges[i + 1]);
-      html += `
-        <div class="legend-row">
-          <span class="swatch" style="background:${CHOROPLETH_COLORS[i]}"></span>
-          <span>${lo} &ndash; ${hi}</span>
-        </div>`;
-    }
-    div.innerHTML = html;
-    return div;
-  };
-  legend.addTo(map);
+let legendControl = null;
+
+function showLegend(title, colors, breaks, minValue, maxValue, unit) {
+  if (!legendControl) {
+    legendControl = L.control({ position: "bottomright" });
+    legendControl.onAdd = function () {
+      this._div = L.DomUtil.create("div", "legend");
+      return this._div;
+    };
+    legendControl.addTo(map);
+  }
+
+  const edges = [minValue, ...breaks, maxValue];
+  let html = `<div class="legend-title">${title}</div>`;
+  for (let i = 0; i < colors.length; i++) {
+    const lo = formatNumber(edges[i]);
+    const hi = formatNumber(edges[i + 1]);
+    html += `
+      <div class="legend-row">
+        <span class="swatch" style="background:${colors[i]}"></span>
+        <span>${lo} &ndash; ${hi}${unit || ""}</span>
+      </div>`;
+  }
+  legendControl.getContainer().innerHTML = html;
 }
 
 function updateHeaderTotals(features, properties) {
@@ -217,15 +232,17 @@ function enterDrilldown(stadtteilFeature) {
     });
 }
 
-function exitDrilldown() {
+function closeDrilldownPanel() {
   if (buildingLayer) {
     map.removeLayer(buildingLayer);
     buildingLayer = null;
   }
-  if (stadtteilLayer) {
-    stadtteilLayer.addTo(map);
-  }
   document.getElementById("drilldown-panel").hidden = true;
+}
+
+function exitDrilldown() {
+  closeDrilldownPanel();
+  if (stadtteilLayer) stadtteilLayer.addTo(map);
 
   requestAnimationFrame(() => {
     map.invalidateSize();
@@ -251,6 +268,8 @@ fetch("data/stadtteile.json")
     const breaks = quantileBreaks(values, CHOROPLETH_COLORS.length);
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
+    stadtteilValues = values;
+    stadtteilBreaks = breaks;
 
     function styleFeature(feature) {
       return {
@@ -301,6 +320,7 @@ fetch("data/stadtteile.json")
     });
     withArea.sort((a, b) => b.area - a.area);
     const LABEL_COUNT = 15;
+    stadtteilLabels = L.layerGroup();
     withArea.slice(0, LABEL_COUNT).forEach((s) => {
       if (!s.centroid) return;
       L.marker([s.centroid[1], s.centroid[0]], {
@@ -310,10 +330,11 @@ fetch("data/stadtteile.json")
           iconSize: null,
         }),
         interactive: false,
-      }).addTo(map);
+      }).addTo(stadtteilLabels);
     });
+    stadtteilLabels.addTo(map);
 
-    buildLegend(breaks, minValue, maxValue);
+    showLegend("Roof potential (kWp)", CHOROPLETH_COLORS, breaks, minValue, maxValue);
     updateHeaderTotals(data.features, data.properties);
     updateFooter(data.properties);
 
@@ -445,3 +466,103 @@ fetch("data/storage_nrw_large.json")
     });
   })
   .catch((err) => console.error(err));
+
+// --- View switcher: Stadtteil potential vs PLZ realization ------------------
+
+function plzPopupHtml(props) {
+  return `
+    <div class="stadtteil-popup">
+      <h3>PLZ ${props.plz}</h3>
+      <table>
+        <tr><td class="label">Qualifying buildings</td><td class="value">${formatNumber(props.qualifying_buildings)}</td></tr>
+        <tr><td class="label">Roof potential</td><td class="value">${formatNumber(props.total_kwp)} kWp</td></tr>
+        <tr><td class="label">Registered PV</td><td class="value">${formatNumber(props.registered_kwp)} kWp</td></tr>
+        <tr><td class="label">Realization</td><td class="value">${props.realization_pct.toFixed(1)}%</td></tr>
+      </table>
+    </div>`;
+}
+
+function showStadtteilView() {
+  closeDrilldownPanel();
+  if (plzLayer) map.removeLayer(plzLayer);
+  if (stadtteilLayer) stadtteilLayer.addTo(map);
+  if (stadtteilLabels) stadtteilLabels.addTo(map);
+
+  if (stadtteilValues) {
+    showLegend("Roof potential (kWp)", CHOROPLETH_COLORS, stadtteilBreaks, Math.min(...stadtteilValues), Math.max(...stadtteilValues));
+  }
+
+  requestAnimationFrame(() => {
+    map.invalidateSize();
+    if (cityBounds) map.fitBounds(cityBounds, { padding: [10, 10] });
+  });
+}
+
+function drawPlzLayer(data) {
+  const values = data.features.map((f) => f.properties.realization_pct);
+  const breaks = quantileBreaks(values, PLZ_COLORS.length);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+
+  function stylePlz(feature) {
+    return {
+      fillColor: colorForValue(feature.properties.realization_pct, breaks, PLZ_COLORS),
+      fillOpacity: 0.8,
+      color: "#ffffff",
+      weight: 1,
+    };
+  }
+
+  plzLayer = L.geoJSON(data, {
+    style: stylePlz,
+    onEachFeature: (feature, layer) => {
+      layer.bindTooltip("PLZ " + feature.properties.plz, { sticky: true, className: "stadtteil-tooltip" });
+      layer.bindPopup(plzPopupHtml(feature.properties), { className: "stadtteil-popup" });
+      layer.on({
+        mouseover: (e) => { e.target.setStyle({ weight: 3, color: "#1f2933" }); e.target.bringToFront(); },
+        mouseout: (e) => plzLayer.resetStyle(e.target),
+      });
+    },
+  }).addTo(map);
+
+  showLegend("Realization (%)", PLZ_COLORS, breaks, minValue, maxValue, "%");
+
+  requestAnimationFrame(() => {
+    map.invalidateSize();
+    map.fitBounds(plzLayer.getBounds(), { padding: [10, 10] });
+  });
+}
+
+function showPlzView() {
+  closeDrilldownPanel();
+  if (stadtteilLayer) map.removeLayer(stadtteilLayer);
+  if (stadtteilLabels) map.removeLayer(stadtteilLabels);
+
+  if (plzData) {
+    if (plzLayer) plzLayer.addTo(map);
+    showLegend("Realization (%)", PLZ_COLORS,
+      quantileBreaks(plzData.features.map((f) => f.properties.realization_pct), PLZ_COLORS.length),
+      Math.min(...plzData.features.map((f) => f.properties.realization_pct)),
+      Math.max(...plzData.features.map((f) => f.properties.realization_pct)), "%");
+    requestAnimationFrame(() => {
+      map.invalidateSize();
+      map.fitBounds(plzLayer.getBounds(), { padding: [10, 10] });
+    });
+    return;
+  }
+
+  fetch("data/plz.json")
+    .then((res) => res.json())
+    .then((data) => {
+      plzData = data;
+      drawPlzLayer(data);
+    })
+    .catch((err) => console.error(err));
+}
+
+document.getElementById("view-stadtteil").addEventListener("change", (e) => {
+  if (e.target.checked) showStadtteilView();
+});
+document.getElementById("view-plz").addEventListener("change", (e) => {
+  if (e.target.checked) showPlzView();
+});
