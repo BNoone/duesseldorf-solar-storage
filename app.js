@@ -41,6 +41,52 @@ function formatNumber(n) {
   return Math.round(n).toLocaleString("en-US");
 }
 
+// Planar shoelace formula on raw lon/lat. Not a true geodesic area, but
+// Duesseldorf's Stadtteile all sit within about 0.2 degrees of latitude of
+// each other, so the distortion is close to uniform and relative ranking
+// (which shapes are "the big ones") comes out the same as a proper
+// projection would give. Only used to decide which names get a permanent
+// label, never displayed as a number.
+function ringArea(ring) {
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[i + 1];
+    sum += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(sum) / 2;
+}
+
+function ringCentroid(ring) {
+  let cx = 0, cy = 0, area = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[i + 1];
+    const cross = x1 * y2 - x2 * y1;
+    area += cross;
+    cx += (x1 + x2) * cross;
+    cy += (y1 + y2) * cross;
+  }
+  area = area / 2;
+  if (area === 0) return ring[0];
+  return [cx / (6 * area), cy / (6 * area)];
+}
+
+function polygonAreaAndCentroid(geometry) {
+  const polys = geometry.type === "MultiPolygon" ? geometry.coordinates : [geometry.coordinates];
+  let totalArea = 0;
+  let best = { area: 0, centroid: null };
+  for (const poly of polys) {
+    const outer = poly[0];
+    const area = ringArea(outer);
+    totalArea += area;
+    if (area > best.area) {
+      best = { area, centroid: ringCentroid(outer) };
+    }
+  }
+  return { totalArea, centroid: best.centroid };
+}
+
 function buildLegend(breaks, minValue, maxValue) {
   const legend = L.control({ position: "bottomright" });
   legend.onAdd = function () {
@@ -136,6 +182,7 @@ fetch("data/stadtteile.json")
     }
 
     function onEachFeature(feature, layer) {
+      // Hover tooltip on every Stadtteil, so no shape is ever unnamed.
       layer.bindTooltip(feature.properties.name, {
         sticky: true,
         className: "stadtteil-tooltip",
@@ -152,11 +199,43 @@ fetch("data/stadtteile.json")
       onEachFeature: onEachFeature,
     }).addTo(map);
 
-    map.fitBounds(geojsonLayer.getBounds(), { padding: [10, 10] });
+    // Permanent labels on the largest Stadtteile by geographic area, so the
+    // city reads as named neighbourhoods on first glance, not just on
+    // hover. The smaller ones still rely on hover; labelling all 50 at once
+    // would clutter the map past readability.
+    const withArea = data.features.map((f) => {
+      const { totalArea, centroid } = polygonAreaAndCentroid(f.geometry);
+      return { name: f.properties.name, area: totalArea, centroid };
+    });
+    withArea.sort((a, b) => b.area - a.area);
+    const LABEL_COUNT = 15;
+    withArea.slice(0, LABEL_COUNT).forEach((s) => {
+      if (!s.centroid) return;
+      L.marker([s.centroid[1], s.centroid[0]], {
+        icon: L.divIcon({
+          className: "stadtteil-label",
+          html: s.name,
+          iconSize: null,
+        }),
+        interactive: false,
+      }).addTo(map);
+    });
 
     buildLegend(breaks, minValue, maxValue);
     updateHeaderTotals(data.features, data.properties);
     updateFooter(data.properties);
+
+    // Fix: fitBounds/invalidateSize must run after the header and footer
+    // text above are in the DOM (their final height changes the map
+    // container's flex-computed height) and after the browser has had a
+    // chance to lay that out, or Leaflet measures a stale container size.
+    // A background tab loading the page can hit the same issue if the
+    // layout has not settled by the time this runs, which is why this is
+    // also wrapped in requestAnimationFrame rather than run inline.
+    requestAnimationFrame(() => {
+      map.invalidateSize();
+      map.fitBounds(geojsonLayer.getBounds(), { padding: [10, 10] });
+    });
   })
   .catch((err) => {
     document.getElementById("header-totals").textContent = "Could not load stadtteile.json.";
