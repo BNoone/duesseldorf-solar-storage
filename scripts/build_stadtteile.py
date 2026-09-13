@@ -24,6 +24,7 @@ have been run first (both are cheap to re-run; they skip if already done).
 """
 
 import json
+from datetime import date
 from pathlib import Path
 
 import geopandas as gpd
@@ -149,6 +150,7 @@ def write_geojson(result):
             "source_stadtteile": "Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025",
             "qualifying_rule": "kWp >= 10 summed per building (geb_id), not per facet",
             "battery_potential_formula": "roof potential (kWp) x 1.5 kWh/kWp, HTW Berlin sizing recommendation",
+            "generated_at": date.today().isoformat(),
         },
         "features": features,
     }
