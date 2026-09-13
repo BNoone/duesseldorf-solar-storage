@@ -3,3 +3,6 @@ pyogrio
 pyproj
 shapely
 pandas
+open-mastr
+brotli
+ijson
