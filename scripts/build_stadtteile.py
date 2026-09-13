@@ -6,16 +6,29 @@ facet level. Facets are summed by geb_id (the Solarkataster's own building
 key) before the 10 kWp test, because a typical pitched roof splits into two
 or more facets that individually fall well under 10 kWp.
 
+North-facing pitched facets are excluded before that sum, using the
+cadastre's own compass field (himmel_kat = "Nord"). Checked: 27.5% of
+building-summed kWp sat on facets below 700 kWh/kWp, and 94.6% of all
+north-facing capacity fell below that line, so a north-facing pitched roof
+face is not a realistic PV candidate even though the cadastre lists a
+theoretical yield for it. East and west stay, they are standard practice.
+Flat roofs (dachtyp = "flach", himmel_kat = "Flach") always stay: their
+racking is assumed south-facing regardless of the raw LiDAR surface tilt.
+
 Steps:
-  1. Load Solarkataster facets (geb_id, kw, str, geometry), EPSG:25832.
-  2. Sum kw and str per geb_id; keep buildings with summed kw >= 10.
-  3. Compute each building's representative point as the area-weighted
-     mean of its facet centroids, in EPSG:25832, then reproject once to
-     WGS84 (EPSG:4326) with pyproj.
-  4. Spatial-join building points into the 50 Stadtteil polygons.
-  5. Aggregate per Stadtteil: qualifying building count, total kWp, total
+  1. Load Solarkataster facets (geb_id, kw, str, dachtyp, himmel_kat,
+     geometry), EPSG:25832.
+  2. Drop facets where dachtyp == "geneigt" and himmel_kat == "Nord".
+  3. Sum kw and str per geb_id on the remaining facets; keep buildings with
+     summed kw >= 10. A building that only cleared 10 kWp because of a
+     north face now drops out.
+  4. Compute each building's representative point as the area-weighted
+     mean of its remaining facet centroids, in EPSG:25832, then reproject
+     once to WGS84 (EPSG:4326) with pyproj.
+  5. Spatial-join building points into the 50 Stadtteil polygons.
+  6. Aggregate per Stadtteil: qualifying building count, total kWp, total
      annual MWh, and battery potential at 1.5 kWh per kWp (HTW Berlin).
-  6. Write data/stadtteile.json: a GeoJSON FeatureCollection, one feature
+  7. Write data/stadtteile.json: a GeoJSON FeatureCollection, one feature
      per Stadtteil, simplified geometry, carrying the aggregates above.
 
 Run: python3 scripts/build_stadtteile.py
@@ -57,9 +70,15 @@ REGISTERED_PV_KWP = 161_327.6
 
 def load_qualifying_buildings():
     facets = gpd.read_file(
-        SOLARKATASTER_SHP, engine="pyogrio", columns=["geb_id", "kw", "str"]
+        SOLARKATASTER_SHP, engine="pyogrio",
+        columns=["geb_id", "kw", "str", "dachtyp", "himmel_kat"],
     )
     print(f"Facets loaded: {len(facets):,}")
+
+    north_pitched = (facets["dachtyp"] == "geneigt") & (facets["himmel_kat"] == "Nord")
+    print(f"North-facing pitched facets excluded: {north_pitched.sum():,} "
+          f"({facets.loc[north_pitched, 'kw'].sum():,.1f} kWp)")
+    facets = facets[~north_pitched].copy()
 
     facets["cx"] = facets.geometry.centroid.x
     facets["cy"] = facets.geometry.centroid.y
@@ -159,7 +178,10 @@ def write_geojson(result):
         "properties": {
             "source_solarkataster": "Solarkataster NRW, Gemeindeschluessel 05111000, opengeodata.nrw.de",
             "source_stadtteile": "Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025",
-            "qualifying_rule": "kWp >= 10 summed per building (geb_id), not per facet",
+            "qualifying_rule": "kWp >= 10 summed per building (geb_id), not per facet; "
+                                "north-facing pitched roof faces excluded, flat roofs always count",
+            "qualifying_rule_sentence": "North-facing roof faces are excluded. "
+                                         "Flat roofs count, since panels on them are angled south.",
             "battery_potential_formula": "roof potential (kWp) x 1.5 kWh/kWp, HTW Berlin sizing recommendation",
             "registered_pv_kwp": REGISTERED_PV_KWP,
             "generated_at": date.today().isoformat(),

@@ -16,7 +16,10 @@ header {
   flex: 0 0 auto;
   background: #fafaf8;
   border-bottom: 1px solid #e2e0da;
-  padding: 12px 20px;
+  padding: 10px 20px;
+}
+
+header .header-row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -38,6 +41,12 @@ header .totals {
 header .totals strong {
   color: #1f2933;
   font-weight: 600;
+}
+
+header .rule {
+  font-size: 12px;
+  color: #8a8f98;
+  margin-top: 3px;
 }
 
 #map {

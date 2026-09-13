@@ -93,6 +93,10 @@ function updateHeaderTotals(features, properties) {
   }
 
   document.getElementById("header-totals").innerHTML = html;
+
+  if (properties.qualifying_rule_sentence) {
+    document.getElementById("header-rule").textContent = properties.qualifying_rule_sentence;
+  }
 }
 
 function updateFooter(properties) {
