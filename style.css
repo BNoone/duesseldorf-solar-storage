@@ -52,6 +52,7 @@ header .rule {
 #map {
   flex: 1 1 auto;
   min-height: 0;
+  position: relative;
 }
 
 footer {
@@ -79,39 +80,6 @@ footer a {
 }
 .stadtteil-tooltip::before {
   border-top-color: #1f2933;
-}
-
-.stadtteil-popup .leaflet-popup-content-wrapper {
-  border-radius: 4px;
-}
-
-.stadtteil-popup h3 {
-  margin: 0 0 6px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2933;
-}
-
-.stadtteil-popup table {
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.stadtteil-popup td {
-  padding: 2px 0;
-}
-
-.stadtteil-popup td.label {
-  color: #6b7280;
-  padding-right: 14px;
-  white-space: nowrap;
-}
-
-.stadtteil-popup td.value {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  color: #1f2933;
-  font-weight: 500;
 }
 
 .legend {
@@ -151,4 +119,101 @@ footer a {
   white-space: nowrap;
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+.drilldown-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+  padding: 12px 14px;
+  width: 240px;
+  font-size: 12px;
+  color: #1f2933;
+}
+
+.drilldown-panel h2 {
+  margin: 8px 0 8px 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.back-button {
+  display: block;
+  width: 100%;
+  border: 1px solid #d8d5cd;
+  background: #fafaf8;
+  color: #1f2933;
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.back-button:hover {
+  background: #f0efe9;
+}
+
+.drilldown-stats {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.drilldown-stats td {
+  padding: 2px 0;
+}
+
+.drilldown-stats td.label {
+  color: #6b7280;
+}
+
+.drilldown-stats td.value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.drilldown-rule {
+  color: #8a8f98;
+  font-size: 11px;
+  border-top: 1px solid #ececea;
+  padding-top: 8px;
+}
+
+.drilldown-status {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 6px;
+}
+
+.building-popup h3 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.building-popup table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.building-popup td {
+  padding: 2px 0;
+}
+
+.building-popup td.label {
+  color: #6b7280;
+  padding-right: 14px;
+  white-space: nowrap;
+}
+
+.building-popup td.value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }

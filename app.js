@@ -6,6 +6,21 @@ const CHOROPLETH_COLORS = ["#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"
 
 const map = L.map("map").setView(DUESSELDORF_CENTER, DEFAULT_ZOOM);
 
+let stadtteilLayer = null;
+let cityBounds = null;
+let buildingLayer = null;
+
+function slugify(name) {
+  const replacements = { "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss" };
+  let out = name.toLowerCase();
+  for (const [src, dst] of Object.entries(replacements)) {
+    out = out.split(src).join(dst);
+  }
+  out = out.replace(/[^a-z0-9]+/g, "-");
+  out = out.replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return out;
+}
+
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
   maxZoom: 19,
@@ -108,19 +123,6 @@ function buildLegend(breaks, minValue, maxValue) {
   legend.addTo(map);
 }
 
-function popupHtml(props) {
-  return `
-    <div class="stadtteil-popup">
-      <h3>${props.name}</h3>
-      <table>
-        <tr><td class="label">Qualifying buildings</td><td class="value">${formatNumber(props.qualifying_buildings)}</td></tr>
-        <tr><td class="label">Roof potential</td><td class="value">${formatNumber(props.total_kwp)} kWp</td></tr>
-        <tr><td class="label">Annual yield</td><td class="value">${formatNumber(props.total_mwh)} MWh</td></tr>
-        <tr><td class="label">Battery potential</td><td class="value">${formatNumber(props.battery_potential_kwh)} kWh</td></tr>
-      </table>
-    </div>`;
-}
-
 function updateHeaderTotals(features, properties) {
   const totalBuildings = features.reduce((sum, f) => sum + f.properties.qualifying_buildings, 0);
   const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
@@ -144,6 +146,92 @@ function updateHeaderTotals(features, properties) {
     document.getElementById("header-rule").textContent = properties.qualifying_rule_sentence;
   }
 }
+
+function buildingPopupHtml(props) {
+  return `
+    <div class="building-popup">
+      <h3>${props.highlighted ? "Top 20 building" : "Building"}</h3>
+      <table>
+        <tr><td class="label">Roof potential</td><td class="value">${formatNumber(props.total_kwp)} kWp</td></tr>
+        <tr><td class="label">Annual yield</td><td class="value">${formatNumber(props.total_kwh / 1000)} MWh</td></tr>
+        <tr><td class="label">Specific yield</td><td class="value">${formatNumber(props.kwh_kwp)} kWh/kWp</td></tr>
+        <tr><td class="label">Facets</td><td class="value">${props.facet_count}</td></tr>
+      </table>
+    </div>`;
+}
+
+function buildingStyle(feature) {
+  return feature.properties.highlighted
+    ? { fillColor: "#ffd700", fillOpacity: 0.9, color: "#8a6d00", weight: 1 }
+    : { fillColor: "#fd8d3c", fillOpacity: 0.7, color: "#a1551f", weight: 0.5 };
+}
+
+function updateDrilldownPanel(stadtteilFeature) {
+  const props = stadtteilFeature.properties;
+  document.getElementById("drilldown-title").textContent = props.name;
+  document.getElementById("drilldown-buildings").textContent = formatNumber(props.qualifying_buildings);
+  document.getElementById("drilldown-kwp").textContent = formatNumber(props.total_kwp) + " kWp";
+  document.getElementById("drilldown-mwh").textContent = formatNumber(props.total_mwh) + " MWh";
+  document.getElementById("drilldown-battery").textContent = formatNumber(props.battery_potential_kwh) + " kWh";
+  document.getElementById("drilldown-status").textContent = "";
+  document.getElementById("drilldown-panel").hidden = false;
+}
+
+function enterDrilldown(stadtteilFeature) {
+  updateDrilldownPanel(stadtteilFeature);
+
+  if (stadtteilLayer) map.removeLayer(stadtteilLayer);
+  if (buildingLayer) {
+    map.removeLayer(buildingLayer);
+    buildingLayer = null;
+  }
+
+  const slug = slugify(stadtteilFeature.properties.name);
+  document.getElementById("drilldown-status").textContent = "Loading buildings...";
+
+  fetch("data/roofs/" + slug + ".json")
+    .then((res) => {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
+    .then((roofData) => {
+      buildingLayer = L.geoJSON(roofData, {
+        style: buildingStyle,
+        onEachFeature: (feature, layer) => {
+          layer.bindPopup(buildingPopupHtml(feature.properties), { className: "building-popup" });
+        },
+      }).addTo(map);
+
+      document.getElementById("drilldown-status").textContent = "";
+
+      requestAnimationFrame(() => {
+        map.invalidateSize();
+        map.fitBounds(buildingLayer.getBounds(), { padding: [20, 20] });
+      });
+    })
+    .catch((err) => {
+      document.getElementById("drilldown-status").textContent = "Could not load buildings for this Stadtteil.";
+      console.error(err);
+    });
+}
+
+function exitDrilldown() {
+  if (buildingLayer) {
+    map.removeLayer(buildingLayer);
+    buildingLayer = null;
+  }
+  if (stadtteilLayer) {
+    stadtteilLayer.addTo(map);
+  }
+  document.getElementById("drilldown-panel").hidden = true;
+
+  requestAnimationFrame(() => {
+    map.invalidateSize();
+    if (cityBounds) map.fitBounds(cityBounds, { padding: [10, 10] });
+  });
+}
+
+document.getElementById("back-to-overview").addEventListener("click", exitDrilldown);
 
 function updateFooter(properties) {
   const footer = document.getElementById("footer");
@@ -178,7 +266,7 @@ fetch("data/stadtteile.json")
     }
 
     function resetFeature(e) {
-      geojsonLayer.resetStyle(e.target);
+      stadtteilLayer.resetStyle(e.target);
     }
 
     function onEachFeature(feature, layer) {
@@ -187,14 +275,16 @@ fetch("data/stadtteile.json")
         sticky: true,
         className: "stadtteil-tooltip",
       });
-      layer.bindPopup(popupHtml(feature.properties), { className: "stadtteil-popup" });
+      // Click drills into the Stadtteil's buildings; its own numbers move
+      // into the drilldown panel, so there is no popup here any more.
       layer.on({
         mouseover: highlightFeature,
         mouseout: resetFeature,
+        click: () => enterDrilldown(feature),
       });
     }
 
-    const geojsonLayer = L.geoJSON(data, {
+    stadtteilLayer = L.geoJSON(data, {
       style: styleFeature,
       onEachFeature: onEachFeature,
     }).addTo(map);
@@ -234,7 +324,8 @@ fetch("data/stadtteile.json")
     // also wrapped in requestAnimationFrame rather than run inline.
     requestAnimationFrame(() => {
       map.invalidateSize();
-      map.fitBounds(geojsonLayer.getBounds(), { padding: [10, 10] });
+      cityBounds = stadtteilLayer.getBounds();
+      map.fitBounds(cityBounds, { padding: [10, 10] });
     });
   })
   .catch((err) => {

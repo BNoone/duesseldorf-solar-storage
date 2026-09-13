@@ -16,7 +16,20 @@
       </div>
       <div class="rule" id="header-rule"></div>
     </header>
-    <div id="map"></div>
+    <div id="map">
+      <div id="drilldown-panel" class="drilldown-panel" hidden>
+        <button id="back-to-overview" class="back-button">&larr; Back to city overview</button>
+        <h2 id="drilldown-title"></h2>
+        <table class="drilldown-stats">
+          <tr><td class="label">Qualifying buildings</td><td class="value" id="drilldown-buildings"></td></tr>
+          <tr><td class="label">Roof potential</td><td class="value" id="drilldown-kwp"></td></tr>
+          <tr><td class="label">Annual yield</td><td class="value" id="drilldown-mwh"></td></tr>
+          <tr><td class="label">Battery potential</td><td class="value" id="drilldown-battery"></td></tr>
+        </table>
+        <div class="drilldown-rule">Every building at or above 10 kWp is shown. The 20 highest-yield in this neighbourhood are highlighted in gold. North-facing roof faces are excluded.</div>
+        <div class="drilldown-status" id="drilldown-status"></div>
+      </div>
+    </div>
     <footer id="footer">
       Sources: Solarkataster NRW (opengeodata.nrw.de) and Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025.
     </footer>
