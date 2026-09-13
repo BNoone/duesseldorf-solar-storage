@@ -1,15 +1,20 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v2.1
+# Duesseldorf Solar + Storage Potential Map · Scope v2.2
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-13 (v2.1, see Changelog)
+**Amended:** 2026-09-13 (v2.2, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
 ---
 
 ## 0. Changelog
+
+**v2.2 (2026-09-13):** the building-level sum picked up weak roof faces along with the strong ones.
+
+1. **North-facing pitched roof faces excluded from the building sum.** Checking the distribution behind v2.1's building-level figures showed 27.5% of qualifying kWp sat on facets below 700 kWh/kWp, and 94.6% of all north-facing capacity fell below that line. Summing every facet by building, with no per-facet floor, had pulled that roof area in by accident. Excluded using the cadastre's own compass field (`himmel_kat = "Nord"`, pitched roofs only; flat roofs always stay, their racking faces south regardless of the raw surface tilt), a categorical rule rather than a numeric threshold, so the page can state it in one sentence. Potential dropped from 1,683,379 kWp to 1,392,501 kWp, realization rose from 9.6% to 11.6% (same registered capacity, smaller and more honest potential). Full figures in section 11.
+2. **Registered PV figure reconciled.** A second mention of 161,365 kWp survived in section 3 after v2.1 corrected section 11's carry-over table to 161,328. Both now read 161,328, the script's computed value.
 
 **v2.1 (2026-09-13):** three changes, made together after a data check.
 
@@ -43,7 +48,7 @@ It is a portfolio piece for hiring managers. It has to load fast on a laptop, lo
 |                           |      derate          |
 |                           |  [ ] Heatwave: AC    |
 |                           |      demand surge    |
-|                           |  Built out: 10% /    |
+|                           |  Built out: 12% /    |
 |                           |      30% / 50%       |
 |                           |                      |
 |                           |  NUMBERS             |
@@ -79,20 +84,29 @@ Coordinate coverage is not a random gap, it is a step function of installation s
 
 **Potential is still computed once, at building level, then aggregated up two separate, non-comparable ways:** once by Stadtteil, for the headline potential map and the drill-down; once by PLZ, purely so the PLZ shapes can show a realization rate (existing PV, from the registry's `Postleitzahl` field, divided by potential, aggregated to the same PLZ boundaries via the same reliable building-centroid join) and a battery-potential figure to sit next to existing BESS. Both aggregations use the same building-level numbers and the same join method; they differ only in which boundary set they sum into, because Stadtteil and PLZ slice the city differently. Summed across all Stadtteile or across all PLZ, both return the same citywide total.
 
-### The suitability rule: building level, not facet level
+### The suitability rule: building level, north-facing pitched faces excluded
 
-**A roof counts as suitable if its building clears 10 kWp when all of that building's Solarkataster facets are summed, and ranking for the highlighted set is by that building's yield-weighted specific yield (`kwh_kwp`, computed as the building's total annual yield divided by its total kWp).**
+**A roof counts as suitable if its building clears 10 kWp when its qualifying facets are summed, and ranking for the highlighted set is by that building's yield-weighted specific yield (`kwh_kwp`, computed as the building's total annual yield divided by its total kWp).**
 
 Never per facet. A typical pitched roof splits into two or more facets of a few kWp each; testing 10 kWp against a single facet excluded most ordinary houses even though the building as a whole clearly qualifies.
 
+**A facet qualifies for the sum unless it is a north-facing pitched roof face.** The exclusion uses the cadastre's own compass field, `himmel_kat = "Nord"`, applied only where `dachtyp = "geneigt"`, checked before the building sum, not after. East and west-facing facets stay, they are standard practice. Flat roofs (`dachtyp = "flach"`, `himmel_kat = "Flach"`) always stay regardless of the raw LiDAR surface tilt, because real installations on flat roofs are racked to face south.
+
+**Sentence for the page:** *"North-facing roof faces are excluded. Flat roofs count, since panels on them are angled south."*
+
+**Why:** summing all facets by building (no per-facet floor) pulled in roof area the old per-facet rule had excluded only by accident. Checked: across the 58,631 buildings that qualified before this exclusion, 27.5% of their combined kWp sat on facets below 700 kWh/kWp, and 94.6% of all north-facing capacity in those buildings fell below that line. East and west-facing weak facets existed too, but nowhere near as concentrated. A categorical, cadastre-native rule (compass direction) was chosen over a numeric `kwh_kwp` threshold so the page can state the rule in one sentence without citing a cutoff number that would need re-justifying.
+
 Checked against the Duesseldorf Solarkataster (305,939 facets, 142,377 distinct buildings, EPSG:25832):
 
-- 58,631 buildings clear 10 kWp when summed by `geb_id`
-- Total potential: 1,683,379 kWp
-- Total annual yield: 1,301,697 MWh/year
-- Realization against 161,365 kWp registered (MaStR): **9.6%**
+- 43,617 north-facing pitched facets excluded (260,042 kWp, before the building sum)
+- 48,475 buildings clear 10 kWp on their remaining facets (down from 58,631 before the exclusion; 10,156 buildings dropped out because their north face was the only thing pushing them over 10 kWp)
+- Total potential: 1,392,501 kWp (down from 1,683,379)
+- Total annual yield: 1,115,838 MWh/year (down from 1,301,697)
+- Capacity-weighted specific yield: 801.3 kWh/kWp (up from 773.3, since the weakest facets are gone)
+- Realization against 161,328 kWp registered (MaStR): **11.6%** (up from 9.6%, same registered capacity against a smaller, more honest potential figure)
+- No Stadtteil moved more than 5 places in the total-kWp ranking; the largest move was Lichtenbroich, 35th to 30th. Flingern Nord held at 15th.
 
-These figures supersede the per-facet numbers from v2 (49,812 facets, 1,156,084 kWp, 14.0%). The per-facet numbers do not reach the site.
+These figures supersede the all-facets-summed-by-building numbers immediately above, which themselves superseded the original per-facet numbers (49,812 facets, 1,156,084 kWp, 14.0%). None of the superseded numbers reach the site. See section 11 for the full lineage.
 
 ### Level: Stadtteil
 
@@ -167,9 +181,9 @@ Evening demand rises during heat. Applies a demand multiplier.
 
 There is no Duesseldorf consumption dataset. Either find one citable source for the multiplier, or ship the toggle labelled "illustrative assumption, not measured" with the assumption written next to it. Both are acceptable. Silently inventing a number is not.
 
-### Control 3 · Built out at 10% / 30% / 50%
+### Control 3 · Built out at 12% / 30% / 50%
 
-Steps, not a free slider. Shows what the city's generation and battery potential look like if more of the rooftop potential were actually built. 10% is today's measured realization rate (9.6%, rounded), recomputed at building level, see section 3. This replaces v2's 14%, which was the per-facet figure and is now superseded.
+Steps, not a free slider. Shows what the city's generation and battery potential look like if more of the rooftop potential were actually built. 12% is today's measured realization rate (11.6%, rounded), recomputed with north-facing pitched facets excluded, see section 3. This replaces v2.1's 10% (9.6% rounded, before the exclusion) and v2's 14% (the per-facet figure), both now superseded.
 
 ## 5. Two weather years, on purpose
 
@@ -257,14 +271,19 @@ Verified in iteration 1 or in this session. Re-check before any of them reach th
 
 | Fact | Value | Status |
 |---|---|---|
-| Duesseldorf theoretical rooftop potential, per-facet, kWp>=10 | 1,156,084 kWp | Superseded, see below |
-| Duesseldorf theoretical rooftop potential, per-building, kWp>=10 summed by `geb_id` | **1,683,379 kWp** | Current |
-| Duesseldorf annual yield, per-building | **1,301,697 MWh/year** | Current |
+| Duesseldorf theoretical rooftop potential, per-facet, kWp>=10 | 1,156,084 kWp | Superseded |
+| Duesseldorf theoretical rooftop potential, per-building, all facets summed, kWp>=10 | 1,683,379 kWp | Superseded |
+| Duesseldorf theoretical rooftop potential, per-building, north-facing pitched facets excluded | **1,392,501 kWp** | Current |
+| Duesseldorf annual yield, per-building, all facets summed | 1,301,697 MWh/year | Superseded |
+| Duesseldorf annual yield, per-building, north-facing pitched facets excluded | **1,115,838 MWh/year** | Current |
+| Duesseldorf capacity-weighted specific yield (kWh/kWp), north-facing pitched facets excluded | **801.3 kWh/kWp** | Current, up from 773.3 before the exclusion |
 | Registered PV (MaStR) | 161,328 kWp | Current, corrected from v2's 161,365 (fresh query against the same local MaStR pull, Landkreis Duesseldorf, Energietraeger Solare Strahlungsenergie) |
 | Realization, per-facet basis | 14.0% | Superseded |
-| Realization, per-building basis | **9.6%** | Current |
+| Realization, per-building, all facets summed | 9.6% | Superseded |
+| Realization, per-building, north-facing pitched facets excluded | **11.6%** | Current |
 | Duesseldorf roof facets in cadastre | 305,939, EPSG:25832 | Current |
-| Duesseldorf distinct buildings in cadastre (`geb_id`) | 142,377 total, 58,631 qualifying | Current |
+| Duesseldorf distinct buildings in cadastre (`geb_id`) | 142,377 total; 58,631 qualifying before the north-facing exclusion, 48,475 after | Current |
+| Duesseldorf north-facing pitched facets excluded | 43,617 facets, 260,042 kWp, dropped before the building sum | Current |
 | Duesseldorf BESS units | 6,660, of which 28 carry usable coordinates | Current, corrected from v2's 6,672/29 |
 | Duesseldorf BESS units above 100 kW | 6, all 6 with usable coordinates | Current |
 | Duesseldorf BESS units above 1 MW | 1 (10 MW, PLZ 40549, status "In Planung") | Current |
