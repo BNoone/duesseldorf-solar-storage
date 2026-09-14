@@ -1,0 +1,31 @@
+{
+  "annual_gwh_100pct": 1115.8,
+  "city_consumption_gwh": 3049.0,
+  "city_consumption_year": 2022,
+  "levels": [
+    {
+      "buildout_pct": 11.6,
+      "buildout_label": "12%",
+      "annual_gwh": 129.4,
+      "coverage_pct": 4.2
+    },
+    {
+      "buildout_pct": 30.0,
+      "buildout_label": "30%",
+      "annual_gwh": 334.8,
+      "coverage_pct": 11.0
+    },
+    {
+      "buildout_pct": 50.0,
+      "buildout_label": "50%",
+      "annual_gwh": 557.9,
+      "coverage_pct": 18.3
+    },
+    {
+      "buildout_pct": 100.0,
+      "buildout_label": "100%",
+      "annual_gwh": 1115.8,
+      "coverage_pct": 36.6
+    }
+  ]
+}

@@ -1,15 +1,21 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v2.3
+# Duesseldorf Solar + Storage Potential Map · Scope v2.4
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-14 (v2.3, see Changelog)
+**Amended:** 2026-09-14 (v2.4, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
 ---
 
 ## 0. Changelog
+
+**v2.4 (2026-09-14):** the scenario panel gets its actual model. Section 4 rewritten in full.
+
+The heatwave PV derate now has a real formula (NOCT cell temperature model, temperature coefficient applied to cell temperature, never air temperature, which was flagged in advance as the easiest thing in this batch to get wrong). Duesseldorf's own heatwave window was checked against ERA5 rather than assumed to match the national records: 24-28 June 2026, five days, worst day 26 June at 38.1 degC citywide mean. A matched normal day (25 August 2025) was found by searching 2025's summer for the closest GTI total, so the heatwave comparison isolates temperature rather than also measuring cloud cover. The built-out control gains a 100% step, required because the project's own premise is "every suitable rooftop carries solar." The AC demand surge toggle is decided (IEA France-analogue figure, +25% on the evening peak, never presented as a Duesseldorf measurement) even though it ships last, in an optional commit 5. City electricity consumption (3,049 GWh, 2022) is sourced to Duesseldorf's own Energie- und Treibhausgasbilanz, not a national or regional dataset. Annual generation at each build-out level was then set against that consumption figure to produce the page's headline sentence: at full build-out, rooftop solar alone would cover 37% of the city's own electricity use.
+
+Also fixed: the `fetch_mastr.py` known-trap entry (section 13) still listed the old two-table download, missing `storage_units`, after that was already corrected in v2.3's own commit. Both now agree.
 
 **v2.3 (2026-09-14):** one geography, not two. The PLZ choropleth built in v2.1/v2.2 is removed.
 
@@ -180,27 +186,95 @@ That is why an **NRW-wide layer showing only units above 1 MW** is added, for co
 
 ## 4. The scenario panel
 
-Three controls. Each one changes numbers that are already on screen.
+**The spine of this panel is one comparison: the same rooftops, two conditions.** How much energy on a normal day, how much on a heatwave day, what the difference is. Everything below hangs off that comparison. The page must say plainly, in its own words, that this is a thought experiment, not a forecast.
 
 ### Toggle 1 · Heatwave: PV derate
 
-Hot panels produce less. Applies a temperature derate using a standard module temperature coefficient and a cell temperature model.
+Hot panels produce less. This is the one calculation in the whole project with real potential to be gotten wrong, so the model is written out in full here, not just described.
 
-**The heatwave is a real, named event, not an abstraction.** Germany broke its all-time national temperature record on three consecutive days in late June 2026 (41.3 degC Saarbruecken on the 26th, 41.5 degC Drewitz on the 27th, 41.7 degC Coschen on the 28th), and NRW was affected enough that regional rail was suspended for six hours. Duesseldorf's own ERA5 peak fell in the same window: 38.2 degC on the 26th, 36.4 degC on the 27th, 32.0 degC on the 28th, against 27.1 degC on the 29th as the heat broke.
+**Cell temperature, not air temperature.** The temperature coefficient below applies to the PV cell's own temperature, which on a sunny day runs well above the air temperature around it. Using air temperature directly understates the derate roughly fourfold. Cell temperature is modelled with the standard NOCT approach:
 
-The page then says something concrete: *"During the record heat of 26 to 28 June 2026, these rooftops would have produced X% less than a normal summer day."*
+`T_cell = T_air + (NOCT - 20) / 800 * GTI`
 
-Source: [2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_heatwaves)
+NOCT (nominal operating cell temperature) = 45 degC. GTI is global tilted irradiance, W/m².
+
+**Derate:**
+
+`derate = max(0, (T_cell - 25) * 0.35%)`
+
+No efficiency gain is modelled below 25 degC; the derate floors at zero rather than going negative. The 0.35%/degC coefficient is a point estimate; the page also states the realistic range, -0.29 to -0.40 %/degC, since a city's roof stock spans many module ages and manufacturers and no single value is exactly right for all of it.
+
+**The heatwave is a real, named event, not an abstraction, and Duesseldorf gets its own numbers, not borrowed national ones.** Germany broke its all-time national temperature record on three consecutive days in late June 2026 (41.3 degC Saarbruecken on the 26th, 41.5 degC Drewitz on the 27th, 41.7 degC Coschen on the 28th), and NRW was affected enough that regional rail was suspended for six hours. Those records were set in Saarland and Brandenburg, not here, so Duesseldorf's own peak was checked separately rather than assumed to match.
+
+Found from ERA5 (citywide mean across the 50 Stadtteil centroids, `scripts/find_heatwave_window.py`): Duesseldorf's own heatwave window is **24 to 28 June 2026**, five days, not one.
+
+| Date | Daily max (citywide mean) |
+|---|---|
+| 24 June | 34.3 degC |
+| 25 June | 34.3 degC |
+| **26 June** | **38.1 degC (worst day)** |
+| 27 June | 36.3 degC |
+| 28 June | 31.9 degC |
+
+Peak single-hour GTI in the window: 934.5 W/m² at 14:00 on 25 June.
+
+**Matched normal day, so the comparison measures heat, not cloud:** comparing the worst heatwave day to a mild, cloudy 2025 day would mostly measure the difference in sunshine, not the difference in temperature. **25 August 2025** was found by searching 2025's summer (June-August) days for the one whose citywide daily GTI total is closest to 26 June 2026's, then, among close matches, the one whose own daily max temperature sits closest to the 2025 summer median (24.7 degC), so the match is not itself a small heat event or an unusually cool outlier.
+
+| | Heatwave day (26 June 2026) | Matched normal day (25 Aug 2025) |
+|---|---|---|
+| GTI total | 6,685 Wh/m² | 6,724 Wh/m² (+0.6%) |
+| Daily max temp | 38.1 degC | 24.2 degC (-13.9 degC) |
+
+The page then says something concrete, built from these two days and the multi-day window, not a single cherry-picked hour: *"During the record heat of 24 to 28 June 2026, these rooftops would have produced X% less than a matched normal day."*
+
+Sources: [2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_heatwaves); [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) (ERA5) for both the heatwave window and the matched normal day.
+
+**Computed** (`scripts/build_generation.py`, citywide, at today's 11.6% build-out; every build-out level scales linearly from these, since build-out below 100% is modelled as a uniform scaling of the whole city's output, not a choice of which roofs get built):
+
+| | Normal day (25 Aug 2025) | Heatwave worst day (26 Jun 2026) |
+|---|---|---|
+| Rated (undegraded) | 647,970 kWh | 643,965 kWh (-0.6%, the GTI match) |
+| Derated | 606,166 kWh | 574,275 kWh |
+| Lost to derate | 6.45% | 10.82% |
+
+**Headline: 574,275 kWh on the heatwave worst day against 606,166 kWh on the matched normal day, 31,891 kWh less, 5.3%.** That 5.3% is smaller than the worst-hour derate (14.18%) because derate only bites during the hottest, sunniest hours; mornings and evenings barely notice. It is also smaller than the raw heat-versus-normal derate gap (10.82% minus 6.45% = 4.37 points) because the two days do not start from identical sun either, the GTI match is close (+0.6%) but not exact.
+
+**Worth stating on the page, since it is genuinely surprising:** even the matched *normal* day loses 6.45% to derate. That is not a bug. Panels run well above air temperature in full midday sun on any clear summer day (the NOCT model adds roughly 28 degC to a 900 W/m² midday reading), so some derate is ordinary, not a heatwave-specific effect. What the heatwave actually adds is the difference between 6.45% and 10.82%, not the full 10.82%.
+
+**Across the full 24-28 June window**, not just the worst day: 3,073,892 kWh derated total, average daylight derate 6.56%, 345,203 kWh lost to derate over the five days. The worst single hour anywhere in the window reached 14.18% derate.
 
 ### Toggle 2 · Heatwave: AC demand surge
 
-Evening demand rises during heat. Applies a demand multiplier.
+Evening demand rises during heat. There is no Duesseldorf consumption dataset, and none is invented. Instead: **+25% on the evening peak**, sourced to the IEA commentary ["Staying cool without overheating the energy system"](https://www.iea.org/commentaries/staying-cool-without-overheating-the-energy-system) (28 July 2025), which reports France at 25% above off-season demand during the 2025 heatwaves. France is the stated analogue because German residential air conditioning ownership is low, so a German figure of this kind does not really exist to cite.
 
-There is no Duesseldorf consumption dataset. Either find one citable source for the multiplier, or ship the toggle labelled "illustrative assumption, not measured" with the assumption written next to it. Both are acceptable. Silently inventing a number is not.
+Labelled on the page as a **France analogue**, never as a Duesseldorf measurement. No demand curve is drawn; there is no hourly demand data for Duesseldorf, and inventing one is out of scope. Instead the toggle shades the evening peak window on the generation chart and labels it with the cited figure.
 
-### Control 3 · Built out at 12% / 30% / 50%
+**The resulting asymmetry is stated on the page, not hidden:** supply is modelled hour by hour from ERA5, a real measured input. Demand is a single cited figure applied to a window, because anything finer would be invented rather than sourced.
 
-Steps, not a free slider. Shows what the city's generation and battery potential look like if more of the rooftop potential were actually built. 12% is today's measured realization rate (11.6%, rounded), recomputed with north-facing pitched facets excluded, see section 3. This replaces v2.1's 10% (9.6% rounded, before the exclusion) and v2's 14% (the per-facet figure), both now superseded.
+### Control 3 · Built out at 12% / 30% / 50% / 100%
+
+Steps, not a free slider. Shows what the city's generation and battery potential look like at each level of rooftop build-out. 12% is today's measured realization rate (11.6%, rounded), recomputed with north-facing pitched facets excluded, see section 3; this replaces v2.1's 10% (9.6% rounded, before the exclusion) and v2's 14% (the per-facet figure), both now superseded. **100% is required, not optional:** the whole thought experiment this project is built around is "every suitable rooftop carries solar," and a built-out control that stops short of that number never actually answers the question the page opens with.
+
+**City coverage at each level** (`scripts/build_coverage.py`; annual generation at 100% build-out is the Solarkataster cadastre's own total, `data/stadtteile.json`, other levels scale it uniformly; against the city's own annual electricity consumption, 3,049 GWh in 2022, Duesseldorf's Energie- und Treibhausgasbilanz 2022, see section 3):
+
+| Build-out | Annual generation | Share of city consumption |
+|---|---|---|
+| 12% | 129.4 GWh | 4.2% |
+| 30% | 334.8 GWh | 11.0% |
+| 50% | 557.9 GWh | 18.3% |
+| 100% | 1,115.8 GWh | 36.6% |
+
+**The most important sentence on the site:** Duesseldorf's rooftops could generate 1,116 GWh a year, the city uses 3,049 GWh (2022), so at full build-out rooftop solar alone would cover 37% of it.
+
+### Battery case: midday surplus, evening gap
+
+Generation peaks around midday and is close to zero by evening; consumption does not follow that shape. Storage sized at 1.5 kWh per kWp (the HTW Berlin upper bound, section 3) is shown against both the matched normal day and the heatwave day: how much of the day's midday surplus a battery that size could shift into the evening. The chart accompanying this makes the same point visually: hourly output across the heatwave day, rated against derated, with the evening hours marked, so the reason storage matters is visible, not just stated.
+
+### Architecture note specific to this panel
+
+ERA5 is fetched once per Stadtteil centroid (50 locations), not per building. Per-building would be roughly 117,000 locations and run for days; a building-scale derate model does not need building-scale weather, since air temperature does not vary meaningfully within a neighbourhood the size of a Stadtteil. See `scripts/fetch_era5.py`.
+
+Every combination of heatwave on/off and build-out level is precomputed to static JSON; commit 5, if it lands, doubles that with AC surge on/off. The browser only ever selects a precomputed value, never calculates one. This is the same non-negotiable rule as the rest of the scenario panel (section 6).
 
 ## 5. Two weather years, on purpose
 
@@ -210,6 +284,8 @@ Steps, not a free slider. Shows what the city's generation and battery potential
 | The heatwave toggle | **June 2026** | The actual record event. Available now, ERA5 runs about 5 days behind real time |
 
 2026 cannot carry the annual figures because it is not over. Using it for the heatwave window is fine and makes the page better, because the event is real and recent.
+
+The matched normal day used for the heatwave comparison (section 4) also comes from 2025: 25 August, found by searching 2025's own summer days for the closest GTI match to the heatwave's worst day. It is not an arbitrary "typical day", it is a specific, named, checked date, same as the heatwave window itself.
 
 Both years are named on the page, in one sentence, next to the numbers they produced. Iteration 1's mistake was not picking one year. It was never saying which year, so nobody could tell whether the +17.1% gap was a bug or a sunny summer.
 
@@ -226,7 +302,7 @@ Why:
 - **Nothing to host.** GitHub Pages serves files. It cannot run Python. Precomputing means the site is just files, so it is free, permanent, and cannot break at 3am.
 - **Nothing to re-derive.** The maths lives in one Python script with a name and a git history. If a number on the site looks wrong, there is exactly one place to look.
 - **Fast.** A visitor's laptop is not going to loop over 300,000 roof polygons. Reading a small JSON is instant.
-- **Small combination count.** Two on/off toggles and three built-out steps is 12 combinations. Precomputing 12 answers is trivial. If the count ever grows past a few dozen, revisit this.
+- **Small combination count.** One on/off toggle (heatwave) and four built-out steps is 8 combinations; a second on/off toggle (AC surge, commit 5) would make it 16. Precomputing 16 answers is trivial. If the count ever grows past a few dozen, revisit this.
 
 **Frontend: plain HTML, CSS, vanilla JavaScript, Leaflet for the map, one charting library loaded from a CDN.** No React, no npm install, no build step. Push to main, Pages serves it, done.
 
@@ -267,12 +343,14 @@ Any request implying one of these is a stop-and-ask:
 - **Storage geography and focus:** postcode facts (unit count, kWh) inside the Stadtteil panel for the rest, large units (>100 kW) called out as exact dots, an NRW-wide >1 MW layer added for contrast, battery potential reframed away from a home-battery count.
 - **One geography, not two:** Stadtteil is the only map layer. PLZ realization and PLZ-level potential, briefly a second map view in v2.1/v2.2, are removed as a view; their numbers survive as postcode facts in the Stadtteil panel. See the v2.3 changelog entry for the measured crossing figures and why apportioning a per-Stadtteil realization rate was rejected.
 
-### Still open, for Claude Code to research and recommend
+### Still open
 
-1. **PV derate coefficient.** Recommended: NOCT-based cell temperature model, `T_cell = T_ambient + (NOCT - 20) / 800 x G` (Sandia PVPMC), with a -0.47%/degC temperature coefficient for a standard module (NREL PVWatts V5 Manual, Table 6). Not yet confirmed.
-   -> _(pending confirmation)_
-2. **AC surge multiplier.** Recommended: label as an illustrative assumption sourced to arXiv 2507.13534 (heatwave-driven AC adoption modeling for Germany, calibrated against July 2025, Bundesnetzagentur load data), rather than a Duesseldorf measurement. Not yet confirmed.
-   -> _(pending confirmation)_
+None currently.
+
+### Decided since (superseding the earlier recommendations above the line)
+
+- **PV derate coefficient:** -0.35%/degC on cell temperature (range -0.29 to -0.40 stated on the page), NOCT = 45 degC, cell temperature via the standard NOCT model. This replaces the earlier -0.47%/degC NREL PVWatts recommendation; the coefficient applies to cell temperature, never air temperature, see section 4 and section 13.
+- **AC surge multiplier:** +25% on the evening peak, sourced to IEA, "Staying cool without overheating the energy system" (28 July 2025), a France analogue, never presented as a Duesseldorf measurement. This replaces the earlier arXiv 2507.13534 recommendation. See section 4.
 
 ## 10. Definition of done
 
@@ -319,11 +397,13 @@ Verified in iteration 1 or in this session. Re-check before any of them reach th
 
 ## 13. Known traps
 
-- `open-mastr` pulls stay filtered: `db.download(data=["storage","solar"])`. Unfiltered is multi-GB and 30+ minutes.
+- `open-mastr` pulls stay filtered: `db.download(data=["storage","solar","storage_units"])`. Unfiltered is multi-GB and 30+ minutes. `storage_units` is not optional: it is the only place a battery's usable kWh lives, `storage_extended`'s own copy of that field is null for every row, always, at every scale, nationwide. Omitting it silently means kWh figures are unavailable, not just at unit level, this cost a full re-download once already.
 - MaStR usable capacity (kWh) is null at unit level. The `VerknuepfteEinheit -> EinheitMastrNummer` join is mandatory.
 - Filter MaStR to NRW in SQL, not in pandas. The national tables are too large to load whole.
 - MaStR coordinate coverage is a function of unit size, not a random gap. Do not spatial-join existing installations to Stadtteil, or the residential majority silently disappears. Use `Postleitzahl` directly instead.
 - The Solarkataster carries no existing-installation field of any kind. Realization always requires the MaStR join, never the cadastre alone.
+- **The PV temperature coefficient applies to cell temperature, never air temperature.** Using air temperature directly understates the heatwave derate roughly fourfold. Compute cell temperature first (NOCT model, section 4), then apply the coefficient to that.
+- ERA5 fetches for the scenario panel stay at one series per Stadtteil centroid (50 locations), never per building (roughly 117,000, a different and much larger number), and the two weather periods (2025, June 2026) are fetched separately, not as one continuous range, since the months between them are not needed by either figure.
 - `gh auth login --insecure-storage` is required. The sandboxed process cannot reach the macOS Keychain.
 - The repo lives at `~/Desktop/Pet_Projects/duesseldorf-solar-storage`. If iCloud Desktop sync is on, git can occasionally hit a file-locking error there; pausing iCloud sync from the menu bar clears it.
 - Solarkataster NRW ships in EPSG:25832. Leaflet wants WGS84. Reproject in Python, once, not in the browser.
@@ -346,3 +426,5 @@ Verified in iteration 1 or in this session. Re-check before any of them reach th
 - [Wikipedia · 2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_heatwaves)
 - [Open Data Duesseldorf · Stadtteile Duesseldorf](https://opendata.duesseldorf.de/dataset/stadtteile-d%C3%BCsseldorf)
 - [yetzt/postleitzahlen, German postcode boundaries (OpenStreetMap contributors, ODbL)](https://github.com/yetzt/postleitzahlen)
+- [Landeshauptstadt Duesseldorf · Energie- und Treibhausgasbilanz 2022](https://www.duesseldorf.de/fileadmin/Amt19/umweltamt/klimaschutz/pdf/klimaschutz/19_Klimafreundliches_Duesseldorf_2022_web_bf.pdf)
+- [IEA · Staying cool without overheating the energy system (28 July 2025)](https://www.iea.org/commentaries/staying-cool-without-overheating-the-energy-system)
