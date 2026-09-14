@@ -12,14 +12,6 @@ let cityBounds = null;
 let buildingLayer = null;
 let storageDusLayer = null;
 let storageNrwLayer = null;
-let plzLayer = null;
-let plzData = null;
-let stadtteilValues = null;
-let stadtteilBreaks = null;
-
-// ColorBrewer "Greens", 5-class sequential single-hue scale, distinct from
-// the Oranges used for solar potential so the two views never look alike.
-const PLZ_COLORS = ["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"];
 
 function slugify(name) {
   const replacements = { "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss" };
@@ -56,12 +48,11 @@ function quantileBreaks(values, nClasses) {
   return breaks;
 }
 
-function colorForValue(value, breaks, colors) {
-  colors = colors || CHOROPLETH_COLORS;
+function colorForValue(value, breaks) {
   for (let i = 0; i < breaks.length; i++) {
-    if (value <= breaks[i]) return colors[i];
+    if (value <= breaks[i]) return CHOROPLETH_COLORS[i];
   }
-  return colors[colors.length - 1];
+  return CHOROPLETH_COLORS[CHOROPLETH_COLORS.length - 1];
 }
 
 function formatNumber(n) {
@@ -114,30 +105,25 @@ function polygonAreaAndCentroid(geometry) {
   return { totalArea, centroid: best.centroid };
 }
 
-let legendControl = null;
-
-function showLegend(title, colors, breaks, minValue, maxValue, unit) {
-  if (!legendControl) {
-    legendControl = L.control({ position: "bottomright" });
-    legendControl.onAdd = function () {
-      this._div = L.DomUtil.create("div", "legend");
-      return this._div;
-    };
-    legendControl.addTo(map);
-  }
-
-  const edges = [minValue, ...breaks, maxValue];
-  let html = `<div class="legend-title">${title}</div>`;
-  for (let i = 0; i < colors.length; i++) {
-    const lo = formatNumber(edges[i]);
-    const hi = formatNumber(edges[i + 1]);
-    html += `
-      <div class="legend-row">
-        <span class="swatch" style="background:${colors[i]}"></span>
-        <span>${lo} &ndash; ${hi}${unit || ""}</span>
-      </div>`;
-  }
-  legendControl.getContainer().innerHTML = html;
+function showLegend(title, breaks, minValue, maxValue) {
+  const legend = L.control({ position: "bottomright" });
+  legend.onAdd = function () {
+    const div = L.DomUtil.create("div", "legend");
+    const edges = [minValue, ...breaks, maxValue];
+    let html = `<div class="legend-title">${title}</div>`;
+    for (let i = 0; i < CHOROPLETH_COLORS.length; i++) {
+      const lo = formatNumber(edges[i]);
+      const hi = formatNumber(edges[i + 1]);
+      html += `
+        <div class="legend-row">
+          <span class="swatch" style="background:${CHOROPLETH_COLORS[i]}"></span>
+          <span>${lo} &ndash; ${hi}</span>
+        </div>`;
+    }
+    div.innerHTML = html;
+    return div;
+  };
+  legend.addTo(map);
 }
 
 function updateHeaderTotals(features, properties) {
@@ -183,8 +169,11 @@ function buildingStyle(feature) {
     : { fillColor: "#fd8d3c", fillOpacity: 0.7, color: "#a1551f", weight: 0.5 };
 }
 
+let currentDrilldownName = null;
+
 function updateDrilldownPanel(stadtteilFeature) {
   const props = stadtteilFeature.properties;
+  currentDrilldownName = props.name;
   document.getElementById("drilldown-title").textContent = props.name;
   document.getElementById("drilldown-buildings").textContent = formatNumber(props.qualifying_buildings);
   document.getElementById("drilldown-kwp").textContent = formatNumber(props.total_kwp) + " kWp";
@@ -192,6 +181,7 @@ function updateDrilldownPanel(stadtteilFeature) {
   document.getElementById("drilldown-battery").textContent = formatNumber(props.battery_potential_kwh) + " kWh";
   document.getElementById("drilldown-status").textContent = "";
   document.getElementById("drilldown-panel").hidden = false;
+  updatePostcodeFacts(props.name);
 }
 
 function enterDrilldown(stadtteilFeature) {
@@ -268,8 +258,6 @@ fetch("data/stadtteile.json")
     const breaks = quantileBreaks(values, CHOROPLETH_COLORS.length);
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
-    stadtteilValues = values;
-    stadtteilBreaks = breaks;
 
     function styleFeature(feature) {
       return {
@@ -334,7 +322,7 @@ fetch("data/stadtteile.json")
     });
     stadtteilLabels.addTo(map);
 
-    showLegend("Roof potential (kWp)", CHOROPLETH_COLORS, breaks, minValue, maxValue);
+    showLegend("Roof potential (kWp)", breaks, minValue, maxValue);
     updateHeaderTotals(data.features, data.properties);
     updateFooter(data.properties);
 
@@ -467,102 +455,46 @@ fetch("data/storage_nrw_large.json")
   })
   .catch((err) => console.error(err));
 
-// --- View switcher: Stadtteil potential vs PLZ realization ------------------
+// --- Postcode facts, shown inside the Stadtteil drilldown panel ------------
 
-function plzPopupHtml(props) {
-  return `
-    <div class="stadtteil-popup">
-      <h3>PLZ ${props.plz}</h3>
-      <table>
-        <tr><td class="label">Qualifying buildings</td><td class="value">${formatNumber(props.qualifying_buildings)}</td></tr>
-        <tr><td class="label">Roof potential</td><td class="value">${formatNumber(props.total_kwp)} kWp</td></tr>
-        <tr><td class="label">Registered PV</td><td class="value">${formatNumber(props.registered_kwp)} kWp</td></tr>
-        <tr><td class="label">Realization</td><td class="value">${props.realization_pct.toFixed(1)}%</td></tr>
-      </table>
-    </div>`;
-}
+let postcodeFacts = null;
 
-function showStadtteilView() {
-  closeDrilldownPanel();
-  if (plzLayer) map.removeLayer(plzLayer);
-  if (stadtteilLayer) stadtteilLayer.addTo(map);
-  if (stadtteilLabels) stadtteilLabels.addTo(map);
+fetch("data/postcode_facts.json")
+  .then((res) => res.json())
+  .then((data) => {
+    postcodeFacts = data;
+    if (currentDrilldownName) updatePostcodeFacts(currentDrilldownName);
+  })
+  .catch((err) => console.error(err));
 
-  if (stadtteilValues) {
-    showLegend("Roof potential (kWp)", CHOROPLETH_COLORS, stadtteilBreaks, Math.min(...stadtteilValues), Math.max(...stadtteilValues));
+function postcodeFactsHtml(stadtteilName) {
+  if (!postcodeFacts || !postcodeFacts[stadtteilName]) return "";
+  const entries = postcodeFacts[stadtteilName];
+
+  let headline;
+  if (entries.length === 1 || entries[0].share_pct >= 70) {
+    headline = `Mostly in postcode ${entries[0].plz}`;
+  } else {
+    headline = "Spans " + entries.map((e) => e.plz).join(", ");
   }
 
-  requestAnimationFrame(() => {
-    map.invalidateSize();
-    if (cityBounds) map.fitBounds(cityBounds, { padding: [10, 10] });
+  let rows = "";
+  entries.forEach((e) => {
+    rows += `
+      <div class="postcode-row">
+        <div class="postcode-row-head">${e.plz} <span class="postcode-share">(${e.share_pct.toFixed(0)}% of this neighbourhood's potential)</span></div>
+        <table>
+          <tr><td class="label">Installed PV</td><td class="value">${formatNumber(e.registered_kwp)} kWp</td></tr>
+          <tr><td class="label">Postcode's own potential</td><td class="value">${formatNumber(e.own_total_kwp)} kWp</td></tr>
+          <tr><td class="label">Postcode's realization</td><td class="value">${e.realization_pct.toFixed(1)}%</td></tr>
+          <tr><td class="label">Registered storage</td><td class="value">${formatNumber(e.storage_units)} units, ${formatNumber(e.storage_kwh)} kWh</td></tr>
+        </table>
+      </div>`;
   });
+
+  return `<h3>${headline}</h3>${rows}`;
 }
 
-function drawPlzLayer(data) {
-  const values = data.features.map((f) => f.properties.realization_pct);
-  const breaks = quantileBreaks(values, PLZ_COLORS.length);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-
-  function stylePlz(feature) {
-    return {
-      fillColor: colorForValue(feature.properties.realization_pct, breaks, PLZ_COLORS),
-      fillOpacity: 0.8,
-      color: "#ffffff",
-      weight: 1,
-    };
-  }
-
-  plzLayer = L.geoJSON(data, {
-    style: stylePlz,
-    onEachFeature: (feature, layer) => {
-      layer.bindTooltip("PLZ " + feature.properties.plz, { sticky: true, className: "stadtteil-tooltip" });
-      layer.bindPopup(plzPopupHtml(feature.properties), { className: "stadtteil-popup" });
-      layer.on({
-        mouseover: (e) => { e.target.setStyle({ weight: 3, color: "#1f2933" }); e.target.bringToFront(); },
-        mouseout: (e) => plzLayer.resetStyle(e.target),
-      });
-    },
-  }).addTo(map);
-
-  showLegend("Realization (%)", PLZ_COLORS, breaks, minValue, maxValue, "%");
-
-  requestAnimationFrame(() => {
-    map.invalidateSize();
-    map.fitBounds(plzLayer.getBounds(), { padding: [10, 10] });
-  });
+function updatePostcodeFacts(stadtteilName) {
+  document.getElementById("drilldown-postcodes").innerHTML = postcodeFactsHtml(stadtteilName);
 }
-
-function showPlzView() {
-  closeDrilldownPanel();
-  if (stadtteilLayer) map.removeLayer(stadtteilLayer);
-  if (stadtteilLabels) map.removeLayer(stadtteilLabels);
-
-  if (plzData) {
-    if (plzLayer) plzLayer.addTo(map);
-    showLegend("Realization (%)", PLZ_COLORS,
-      quantileBreaks(plzData.features.map((f) => f.properties.realization_pct), PLZ_COLORS.length),
-      Math.min(...plzData.features.map((f) => f.properties.realization_pct)),
-      Math.max(...plzData.features.map((f) => f.properties.realization_pct)), "%");
-    requestAnimationFrame(() => {
-      map.invalidateSize();
-      map.fitBounds(plzLayer.getBounds(), { padding: [10, 10] });
-    });
-    return;
-  }
-
-  fetch("data/plz.json")
-    .then((res) => res.json())
-    .then((data) => {
-      plzData = data;
-      drawPlzLayer(data);
-    })
-    .catch((err) => console.error(err));
-}
-
-document.getElementById("view-stadtteil").addEventListener("change", (e) => {
-  if (e.target.checked) showStadtteilView();
-});
-document.getElementById("view-plz").addEventListener("change", (e) => {
-  if (e.target.checked) showPlzView();
-});

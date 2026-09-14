@@ -1,15 +1,26 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v2.2
+# Duesseldorf Solar + Storage Potential Map · Scope v2.3
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-13 (v2.2, see Changelog)
+**Amended:** 2026-09-14 (v2.3, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
 ---
 
 ## 0. Changelog
+
+**v2.3 (2026-09-14):** one geography, not two. The PLZ choropleth built in v2.1/v2.2 is removed.
+
+A live version briefly shipped both a Stadtteil potential view and a PLZ realization view, switched by a radio control. Two views of the same city, on two geographies that do not nest, read as competing rather than complementary. Before changing anything, measured how much the two geographies actually cross, weighted by roof potential across the 48,467 qualifying buildings that got both a Stadtteil and a PLZ assignment:
+
+- Median Stadtteil draws **96.6%** of its own roof potential from a single overlapping PLZ, and touches a median of **2.5** distinct postcodes. 36 of 50 Stadtteile are above 80% concentration; only 2 are below 50% (Stadtmitte 34.3%, Bilk 48.5%).
+- The mirror is messier: median PLZ draws only **80.2%** of its potential from a single overlapping Stadtteil, and touches a median of **3** distinct neighbourhoods. 5 of 37 postcodes are below 50% concentration (worst: 40489 at 29.6%).
+
+Two options were considered. Apportion each PLZ's registered PV across its overlapping Stadtteile by roof-potential share, to get a Stadtteil-level realization rate (rejected: the assumption that PV uptake is proportional to roof potential within a postcode has no empirical support, and the apportionment is weakest in exactly the dense central Stadtteile people click first, Stadtmitte and Bilk both under 50% concentration, Pempelfort/Derendorf/Unterbilk/Duesseltal all under 55%. A rate shown on Stadtmitte would mostly be a fact about somewhere else). Move the potential view onto PLZ shapes instead, labelled with the neighbourhoods each mainly covers (rejected: PLZ is the coarser, messier unit, per the numbers above, and Stadtteil recognisability was the entire reason this project chose neighbourhoods over postcodes in the first place, see v2.1 below).
+
+**Decision: Stadtteil is the only geography on the map.** Registered PV, realization, and storage counts are exact MaStR facts, addressed by their own `Postleitzahl` field, and are shown as postcode facts inside each Stadtteil's panel, clearly attributed to the postcode, never blended into a per-Stadtteil rate. See section 3.
 
 **v2.2 (2026-09-13):** the building-level sum picked up weak roof faces along with the strong ones.
 
@@ -37,19 +48,18 @@ It is a portfolio piece for hiring managers. It has to load fast on a laptop, lo
 |  Duesseldorf Solar + Storage Potential            |
 +---------------------------+----------------------+
 |                           |  LAYERS              |
-|                           |  [x] Solar potential |
-|         THE MAP           |  [ ] Existing PV     |
-|    (Stadtteil shapes,     |  [ ] Existing BESS   |
-|     click one to drill    |  [ ] Large storage   |
-|     into its buildings;   |      (NRW, >1 MW)    |
-|     PLZ shapes for        |                      |
-|     existing installs)    |  SCENARIOS           |
-|                           |  [ ] Heatwave: PV    |
-|                           |      derate          |
-|                           |  [ ] Heatwave: AC    |
-|                           |      demand surge    |
-|                           |  Built out: 12% /    |
-|                           |      30% / 50%       |
+|                           |  [ ] Large storage,  |
+|         THE MAP           |      Duesseldorf     |
+|    (Stadtteil shapes,     |  [ ] Large storage,  |
+|     the only geography;   |      NRW above 1 MW  |
+|     click one to drill    |                      |
+|     into its buildings.   |  SCENARIOS           |
+|     Its panel then shows  |  [ ] Heatwave: PV    |
+|     the postcodes it      |      derate          |
+|     sits in, each with    |  [ ] Heatwave: AC    |
+|     its own exact PV,     |      demand surge    |
+|     realization, and      |  Built out: 12% /    |
+|     storage facts)        |      30% / 50%       |
 |                           |                      |
 |                           |  NUMBERS             |
 |                           |  (update live as     |
@@ -57,32 +67,26 @@ It is a portfolio piece for hiring managers. It has to load fast on a laptop, lo
 +---------------------------+----------------------+
 ```
 
-One map. Layer checkboxes decide what is drawn on it. The scenario panel changes the numbers. Nothing navigates away.
+One map, one geography. Layer checkboxes decide what else is drawn on it. Clicking a Stadtteil opens a panel with that neighbourhood's own numbers and the postcodes inside it. The scenario panel changes the numbers. Nothing navigates away.
 
-## 3. The data model: three geographies, buildings first
+## 3. The data model: one geography, postcode facts in the panel
 
-Potential is the subject, not inventory. That has not changed. What changed is which shape carries which fact, because the data will not honestly support one shape carrying all of them.
+Potential is the subject, not inventory. That has not changed. What changed, twice now, is which shape carries which fact.
 
-### Why three geographies, not one
+### One geography on the map
 
-| Geography | Carries | Why this one |
-|---|---|---|
-| **Building** (`geb_id`) | The suitability test itself. All potential math starts here | The Solarkataster's own key. Every roof facet belongs to exactly one building, and a building is what someone would actually put a PV system on |
-| **Stadtteil** (50 neighbourhoods) | Solar potential map, and the building drill-down | Solarkataster geometry is exact, so a point-in-polygon join of each building's centroid to a Stadtteil shape is reliable for every building, small or large. Boundaries: [Open Data Duesseldorf, Stadtteile Duesseldorf](https://opendata.duesseldorf.de/dataset/stadtteile-d%C3%BCsseldorf) |
-| **Postcode (PLZ)** | Existing PV, existing BESS, realization | MaStR carries a `Postleitzahl` field for effectively every Duesseldorf unit (100% non-null, both PV and storage), but real coordinates for only a small, size-biased slice: see the check below. PLZ, read directly off the registry's own field, is the only geography the registry data can honestly support without silently dropping most small residential systems. Boundaries: [NRW Postleitzahlen, Rhein-Kreis Neuss Open Data](https://opendata.rhein-kreis-neuss.de/explore/dataset/nrw-postleitzahlen/export/) or the [yetzt/postleitzahlen](https://github.com/yetzt/postleitzahlen) mirror, both OpenStreetMap-derived |
+**Stadtteil (50 neighbourhoods) is the only shape drawn on the map.** Solarkataster geometry is exact, so a point-in-polygon join of each building's centroid to a Stadtteil shape is reliable for every building, small or large. Boundaries: [Open Data Duesseldorf, Stadtteile Duesseldorf](https://opendata.duesseldorf.de/dataset/stadtteile-d%C3%BCsseldorf).
 
-**The check that forced this split** (MaStR pull, local database dated 2026-07-10):
+Postcode (PLZ) still exists in the data, because it is the only geography MaStR's registry data can honestly support (see the check below), but it is not a second map layer. Its numbers appear as facts inside each Stadtteil's panel, addressed to their own postcode, never blended into a neighbourhood-level rate. Why, and how, is its own subsection below.
+
+**The check that forced postcode onto MaStR data in the first place** (MaStR pull, local database dated 2026-07-10):
 
 - PV coordinate coverage by size, Duesseldorf: <10 kWp 0% (8,969 units), 10-30 kWp 0% (2,425 units), 30-100 kWp 85.8% (295 units), 100 kWp-1 MWp 100% (107 units), >=1 MWp 100% (8 units). Overall 368 of 11,804 units, 3.1%.
 - Storage coordinate coverage, Duesseldorf: 28 of 6,660 units, 0.4%, and the pattern is the same, coordinates exist almost only above 100 kW.
 - The Solarkataster itself carries no field indicating an existing installation anywhere. Checked the full attribute dictionary (`Metadaten_PV_Dach_2024_09_opendata.xlsx`): every field describes roof geometry, orientation, irradiance, or a theoretical yield at a fixed 21.7% efficiency. It is a pure potential cadastre. Realization can only ever come from joining against MaStR, never from the cadastre alone.
 - **Confirmed empirically, not just from the schema:** spatial-joined the 368 located Duesseldorf PV units against the nearest Solarkataster facet centroid. 361 of 368 matched within 100 m, median distance 6.7 m. Matched facets carry entirely normal `kw` and `kwh_kwp` values, including facets reporting under 1 kWp of theoretical potential at addresses where hundreds of kWp are actually installed. The cadastre is gross, not net: existing installations never reduce a roof's reported potential.
 
-Coordinate coverage is not a random gap, it is a step function of installation size. A spatial join of existing installations to Stadtteil shapes would keep the handful of commercial and grid-scale systems and silently erase almost the entire residential fleet, which is the majority of units. PLZ, addressed through the registry's own `Postleitzahl` field rather than through coordinates, does not have this problem.
-
-**PLZ and Stadtteil boundaries cross and do not nest.** A Stadtteil can span parts of several postcodes, and a postcode can span parts of several Stadtteile. The two layers are never compared shape-to-shape, and no attempt is made to overlay one on the other. Each answers its own question: Stadtteil says how much a neighbourhood's rooftops could generate, PLZ says what is already registered near there and how big the existing battery fleet is.
-
-**Potential is still computed once, at building level, then aggregated up two separate, non-comparable ways:** once by Stadtteil, for the headline potential map and the drill-down; once by PLZ, purely so the PLZ shapes can show a realization rate (existing PV, from the registry's `Postleitzahl` field, divided by potential, aggregated to the same PLZ boundaries via the same reliable building-centroid join) and a battery-potential figure to sit next to existing BESS. Both aggregations use the same building-level numbers and the same join method; they differ only in which boundary set they sum into, because Stadtteil and PLZ slice the city differently. Summed across all Stadtteile or across all PLZ, both return the same citywide total.
+Coordinate coverage is not a random gap, it is a step function of installation size. A spatial join of existing installations to Stadtteil shapes would keep the handful of commercial and grid-scale systems and silently erase almost the entire residential fleet, which is the majority of units. PLZ, addressed through the registry's own `Postleitzahl` field rather than through coordinates, does not have this problem. This is exactly why PLZ cannot simply disappear: it is the only geography the registry data can be honestly tied to at all.
 
 ### The suitability rule: building level, north-facing pitched faces excluded
 
@@ -118,7 +122,7 @@ Every Duesseldorf Stadtteil gets one shape carrying:
 | Annual yield (MWh) | What that PV would generate in a normal year (2025) |
 | Suitable buildings (count) | How many buildings in this Stadtteil clear the 10 kWp building-level bar |
 
-Existing PV, existing BESS, and realization are not carried on the Stadtteil shape, for the reason above. They live on the PLZ shape.
+Existing PV, existing BESS, and realization are never carried on the Stadtteil shape, and no per-Stadtteil realization rate is ever computed. Those numbers are exact only at postcode granularity; showing them per Stadtteil would mean estimating them, and this project does not estimate what it can state exactly instead. See "Postcode facts" below.
 
 ### Level: buildings, on click
 
@@ -130,18 +134,31 @@ The page must say, in one sentence, what "suitable" and "highlighted" mean. A vi
 
 **Sentence for the page:** *"A building counts as suitable if its roof facets together could carry at least 10 kWp; the 20 shown in gold are the highest-yield buildings in this neighbourhood, but every qualifying building counts toward the totals."*
 
-### Level: postcode (PLZ)
+### Postcode facts, inside the Stadtteil panel
 
-Every Duesseldorf postcode gets one shape carrying:
+Clicking a Stadtteil opens a panel (section 2) that, below that Stadtteil's own exact potential figures, lists the postcodes it overlaps, ordered by that postcode's share of the Stadtteil's own roof potential (the same building-level join used everywhere else, just read Stadtteil-first instead of PLZ-first). Each postcode entry carries **its own exact figures**, computed for that postcode alone, never apportioned to the Stadtteil:
 
 | Field | Meaning |
 |---|---|
-| Roof potential (kWp) | Same building-level potential, aggregated to PLZ instead of Stadtteil |
-| Battery potential (kWh) | Derived from that PLZ's potential, see below |
-| Existing PV (kWp) | Registered here per MaStR's `Postleitzahl` field |
-| Realization (%) | Existing PV ÷ this PLZ's potential |
-| Existing BESS (kWh, units) | All registered batteries here, MaStR `Postleitzahl` |
-| Large BESS (count, kWh) | The subset of existing BESS above 100 kW, called out separately, see section 4 |
+| Installed PV (kWp) | Registered here per MaStR's `Postleitzahl` field, exact |
+| Postcode's own roof potential (kWp) | Building-level potential aggregated to this postcode, independent of the Stadtteil breakdown above it |
+| Postcode's own realization (%) | Installed PV ÷ the postcode's own potential, exact |
+| Registered storage (units, kWh) | All registered batteries in this postcode, MaStR `Postleitzahl`, exact |
+
+**Wording rule, so the page never implies a precision it does not have:**
+
+- If one postcode holds 70% or more of the Stadtteil's roof potential: *"Mostly in postcode 40233."*
+- Otherwise, list them: *"Spans 40213, 40210, 40211."*
+- **Never a per-Stadtteil realization rate.** Not even labelled as an estimate. The reason is in the changelog above: apportioning a postcode's installed PV across the Stadtteile it overlaps, weighted by roof potential, assumes uptake is proportional to potential within a postcode, an assumption with no empirical support, and it is weakest in exactly the central Stadtteile a visitor is most likely to click.
+
+**Example shape, for the page** (real figures, checked against the current build):
+
+```
+Flingern Nord, 35,715 kWp potential
+Mostly in postcode 40235 (77% of this neighbourhood's potential): 1,876 kWp installed, 5.7% of that postcode's potential
+```
+
+**One sentence, stated once on the page, for why installed figures appear this way:** *"Installed capacity is shown as postcode facts, not neighbourhood facts, because the national registry publishes no location finer than postcode for systems under 30 kWp."*
 
 ### Battery potential, and where the number comes from
 
@@ -153,13 +170,13 @@ Labelled on the page as "sensible upper bound, HTW Berlin sizing recommendation"
 
 Source: [HTW Berlin, Empfehlungen zur Auslegung von Solarstromspeichern](https://solar.htw-berlin.de/publikationen/auslegung-von-solarstromspeichern/)
 
-### Existing BESS, shown as postcode clusters, large units called out
+### Existing BESS: postcode facts in the panel, large units the only dots on the map
 
-Only 28 of 6,660 Duesseldorf battery units carry usable coordinates. So existing batteries are shown **aggregated to their postcode**. A cluster reading "PLZ 40233 - 214 units - 2.9 MWh" is honest. A dot pretending to be one battery at an invented address is not.
+Only 28 of 6,660 Duesseldorf battery units carry usable coordinates. v2.1 and v2.2 planned to show the rest **aggregated to their postcode as map clusters**; superseded by v2.3. A cluster is still one geography competing with Stadtteil on the same map, the exact problem this version removes. The fix is the same one applied to PV: registered storage unit counts and kWh are **postcode facts inside the Stadtteil panel** (see above), never their own map layer, never apportioned to a neighbourhood.
 
-**Storage focus shifts to larger units.** Home batteries are context, not the interesting part of the story. Checked: Duesseldorf has exactly 6 storage units above 100 kW, and all 6 carry real coordinates (coordinate coverage is not the problem at this size). Only 1 exceeds 1 MW, a 10 MW unit at PLZ 40549, and its `EinheitBetriebsstatus` is "In Planung", not yet built. Duesseldorf's own grid-scale battery fleet is, honestly, not built yet.
+**Storage focus stays on larger units.** Home batteries are context, not the interesting part of the story. Checked: Duesseldorf has exactly 6 storage units above 100 kW, and all 6 carry real coordinates (coordinate coverage is not the problem at this size). Only 1 exceeds 1 MW, a 10 MW unit at PLZ 40549, and its `EinheitBetriebsstatus` is "In Planung", not yet built. Duesseldorf's own grid-scale battery fleet is, honestly, not built yet. These 6 units are shown as exact dots at their real coordinates, unchanged by this revision, because they have real coordinates and do not need postcode aggregation at all.
 
-That is why an **NRW-wide layer showing only units above 1 MW** is added, for contrast: it gives a visitor something to compare Duesseldorf's near-empty grid-scale tier against, using the same MaStR pull, filtered to `Bruttoleistung > 1000` across all of NRW rather than just Duesseldorf.
+That is why an **NRW-wide layer showing only units above 1 MW** is added, for contrast: it gives a visitor something to compare Duesseldorf's near-empty grid-scale tier against, using the same MaStR pull, filtered to `Bruttoleistung > 1000` across all of NRW rather than just Duesseldorf. This layer is also exact dots, not a geography, so it does not reintroduce the competing-shapes problem.
 
 ## 4. The scenario panel
 
@@ -231,9 +248,9 @@ Any request implying one of these is a stop-and-ask:
 
 1. **One page, one map.** Layers are checkboxes, scenarios are a side panel. No multi-page navigation.
 2. **Potential is the subject.** Existing installations are context, shown to compute a realization rate.
-3. **Building (`geb_id`) is the unit of suitability.** A roof qualifies at 10 kWp summed across all of its facets, never per facet. Stadtteil is the display geography for potential and the building drill-down. PLZ is the display geography for existing PV, existing BESS, and realization, because that is the only geography MaStR's coordinate coverage can honestly support. The two geographies cross, do not nest, and are never compared shape-to-shape.
+3. **Building (`geb_id`) is the unit of suitability.** A roof qualifies at 10 kWp summed across all of its facets, never per facet. **Stadtteil is the only geography drawn on the map.** PLZ still exists in the data, because it is the only geography MaStR's coordinate coverage can honestly support, but its numbers appear as postcode facts inside each Stadtteil's panel, never as a second map layer and never apportioned into a per-Stadtteil rate. Measured before deciding: median Stadtteil draws 96.6% of its potential from one postcode and touches 2.5; median postcode draws only 80.2% of its potential from one Stadtteil and touches 3. See section 3.
 4. **Battery potential = PV potential x 1.5 kWh/kWp**, cited to HTW Berlin, labelled as an upper bound on storage a given amount of solar justifies, not a home-battery count.
-5. **Storage focus is grid-scale and community-scale.** Home batteries stay visible as PLZ-level context. Existing large units (>100 kW) are called out separately, and an NRW-wide layer of units above 1 MW gives Duesseldorf's own near-empty grid-scale tier (1 unit, not yet built) something to be seen against.
+5. **Storage focus is grid-scale and community-scale.** Home batteries stay visible as postcode facts inside the Stadtteil panel, not a map layer. Existing large units (>100 kW) are called out separately as exact dots, and an NRW-wide layer of units above 1 MW gives Duesseldorf's own near-empty grid-scale tier (1 unit, not yet built) something to be seen against.
 6. **2025 for annual figures, June 2026 for the heatwave.** Both named on the page.
 7. **Repo:** new public repository named `duesseldorf-solar-storage`, cloned to `~/Desktop/Pet_Projects/`. The v1 static site is copied in under `/v1/` so the old click-through stays reachable. The v1 repo stays private and archived and is not linked from the README, because a private link is a 404 for visitors.
 8. **Static snapshot.** The site states when the data was pulled and does not pretend to update.
@@ -244,10 +261,11 @@ Any request implying one of these is a stop-and-ask:
 ### Decided
 
 - **Repo name:** `duesseldorf-solar-storage`
-- **Postcode field in MaStR:** yes. `Postleitzahl` and `Ort` are both 100% non-null for Duesseldorf, across 6,660 storage units and 11,804 PV units. Coordinates are the sparse field (0.4% for storage, 3.1% for PV), and sparse in a size-biased way, not randomly. This is the finding that forced the three-geography split in section 3.
+- **Postcode field in MaStR:** yes. `Postleitzahl` and `Ort` are both 100% non-null for Duesseldorf, across 6,660 storage units and 11,804 PV units. Coordinates are the sparse field (0.4% for storage, 3.1% for PV), and sparse in a size-biased way, not randomly. This is the finding that made PLZ the only geography the registry data can honestly support at all.
 - **Roof suitability rule:** building level (`geb_id` sum), not facet level, kWp >= 10, ranked by that building's yield-weighted `kwh_kwp`. See section 3 for the full reasoning and the corrected potential figures.
 - **Suitable-roof display rule:** every qualifying building drawn per Stadtteil, on click, one Stadtteil at a time; the top 20 per Stadtteil by `kwh_kwp` highlighted; aggregates always count every qualifying building, never only the top 20.
-- **Storage geography and focus:** PLZ for existing BESS, large units (>100 kW) called out, an NRW-wide >1 MW layer added for contrast, battery potential reframed away from a home-battery count.
+- **Storage geography and focus:** postcode facts (unit count, kWh) inside the Stadtteil panel for the rest, large units (>100 kW) called out as exact dots, an NRW-wide >1 MW layer added for contrast, battery potential reframed away from a home-battery count.
+- **One geography, not two:** Stadtteil is the only map layer. PLZ realization and PLZ-level potential, briefly a second map view in v2.1/v2.2, are removed as a view; their numbers survive as postcode facts in the Stadtteil panel. See the v2.3 changelog entry for the measured crossing figures and why apportioning a per-Stadtteil realization rate was rejected.
 
 ### Still open, for Claude Code to research and recommend
 
@@ -327,4 +345,4 @@ Verified in iteration 1 or in this session. Re-check before any of them reach th
 - [Open-Meteo · Historical Weather API (ERA5)](https://open-meteo.com/en/docs/historical-weather-api)
 - [Wikipedia · 2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_heatwaves)
 - [Open Data Duesseldorf · Stadtteile Duesseldorf](https://opendata.duesseldorf.de/dataset/stadtteile-d%C3%BCsseldorf)
-- [NRW Postleitzahlen, Rhein-Kreis Neuss Open Data](https://opendata.rhein-kreis-neuss.de/explore/dataset/nrw-postleitzahlen/export/)
+- [yetzt/postleitzahlen, German postcode boundaries (OpenStreetMap contributors, ODbL)](https://github.com/yetzt/postleitzahlen)

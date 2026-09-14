@@ -1,6 +1,12 @@
 """
 Download Duesseldorf's postcode (PLZ) boundaries.
 
+Per SCOPE.md section 3 (v2.3): PLZ is not a map layer, Stadtteil is the
+only geography drawn. These boundaries exist only so build_plz.py and
+build_postcode_facts.py can spatial-join buildings to a postcode, the
+geography MaStR's registry data can actually be tied to. Nothing in the
+output geometry itself is ever rendered.
+
 Source: yetzt/postleitzahlen (https://github.com/yetzt/postleitzahlen),
 an OSM-derived, ODbL-licensed mirror of German postal code areas, updated
 monthly. Ships as a single brotli-compressed GeoJSON covering all of
@@ -11,7 +17,7 @@ and keeps only the Duesseldorf postcodes.
 Duesseldorf's postal codes are the contiguous range 40210-40629 (Deutsche
 Post's own assignment). A prefix match on "40" is not enough: Ratingen
 (40878-40885) and other neighbouring towns also start with 40, and
-would leak into a same-city PLZ layer that is not actually Duesseldorf.
+would leak into a same-city PLZ set that is not actually Duesseldorf.
 
 Run: python3 scripts/fetch_plz_boundaries.py
 Requires the `ijson` and `brotli` packages (see requirements.txt).
