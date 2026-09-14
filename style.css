@@ -130,7 +130,9 @@ footer a {
   border-radius: 4px;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
   padding: 12px 14px;
-  width: 240px;
+  width: 270px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
   font-size: 12px;
   color: #1f2933;
 }
@@ -189,6 +191,62 @@ footer a {
   font-size: 11px;
   color: #6b7280;
   margin-top: 6px;
+}
+
+.drilldown-postcodes {
+  border-top: 1px solid #ececea;
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.drilldown-postcodes h3 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2933;
+}
+
+.postcode-row {
+  margin-bottom: 8px;
+}
+
+.postcode-row-head {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1f2933;
+  margin-bottom: 2px;
+}
+
+.postcode-share {
+  font-weight: 400;
+  color: #8a8f98;
+}
+
+.postcode-row table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 11px;
+}
+
+.postcode-row td {
+  padding: 1px 0;
+}
+
+.postcode-row td.label {
+  color: #6b7280;
+}
+
+.postcode-row td.value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.drilldown-postcode-note {
+  font-size: 10px;
+  color: #8a8f98;
+  margin-top: 6px;
+  font-style: italic;
 }
 
 .building-popup h3 {
