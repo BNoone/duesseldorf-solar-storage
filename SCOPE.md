@@ -1,15 +1,19 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v2.4
+# Duesseldorf Solar + Storage Potential Map · Scope v2.5
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-14 (v2.4, see Changelog)
+**Amended:** 2026-09-14 (v2.5, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
 ---
 
 ## 0. Changelog
+
+**v2.5 (2026-09-14):** commit 5, the AC surge toggle, closes out the scenario panel batch.
+
+The evening demand-surge toggle is wired in: checking it darkens and labels the chart's existing evening shading with the cited France-analogue figure (+25%, IEA, 28 July 2025) and swaps in a supply/demand asymmetry note. No demand curve is drawn and no generation number changes when it is toggled, since it is a demand-side citation, not a supply figure; `data/generation_scenarios.json` stays exactly 8 combinations, not 16 (see section 4's architecture note and section 9, both corrected from the earlier "16 combinations" framing, which would have implied AC surge affects supply). With this, all four required commits plus the optional fifth are merged and live: the scenario panel is complete.
 
 **v2.4 (2026-09-14):** the scenario panel gets its actual model. Section 4 rewritten in full.
 
@@ -253,6 +257,8 @@ Labelled on the page as a **France analogue**, never as a Duesseldorf measuremen
 
 **The resulting asymmetry is stated on the page, not hidden:** supply is modelled hour by hour from ERA5, a real measured input. Demand is a single cited figure applied to a window, because anything finer would be invented rather than sourced.
 
+**Wired into the page** (`app.js`): a checkbox next to the heatwave toggle. On, it darkens the chart's existing evening shading and draws the cited figure directly on the chart (`+25% evening demand`, `France analogue, IEA`), and the chart caption and the scenario-stats panel's asymmetry note update to match. It touches no generation number and no precomputed JSON; `data/generation_scenarios.json` stays 8 combinations, not 16, see the architecture note below.
+
 ### Control 3 · Built out at 12% / 30% / 50% / 100%
 
 Steps, not a free slider. Shows what the city's generation and battery potential look like at each level of rooftop build-out. 12% is today's measured realization rate (11.6%, rounded), recomputed with north-facing pitched facets excluded, see section 3; this replaces v2.1's 10% (9.6% rounded, before the exclusion) and v2's 14% (the per-facet figure), both now superseded. **100% is required, not optional:** the whole thought experiment this project is built around is "every suitable rooftop carries solar," and a built-out control that stops short of that number never actually answers the question the page opens with.
@@ -292,7 +298,9 @@ The chart accompanying this makes the shape point visually: hourly output across
 
 ERA5 is fetched once per Stadtteil centroid (50 locations), not per building. Per-building would be roughly 117,000 locations and run for days; a building-scale derate model does not need building-scale weather, since air temperature does not vary meaningfully within a neighbourhood the size of a Stadtteil. See `scripts/fetch_era5.py`.
 
-Every combination of heatwave on/off and build-out level is precomputed to static JSON; commit 5, if it lands, doubles that with AC surge on/off. The browser only ever selects a precomputed value, never calculates one. This is the same non-negotiable rule as the rest of the scenario panel (section 6).
+Every combination of heatwave on/off and build-out level is precomputed to static JSON. The browser only ever selects a precomputed value, never calculates one. This is the same non-negotiable rule as the rest of the scenario panel (section 6).
+
+**AC surge (commit 5) does not add a ninth data dimension.** It is a demand-side citation, not a generation number, so it changes nothing in `data/generation_scenarios.json`; precomputing 16 combinations for it would just duplicate the same 8 generation figures under two labels, implying AC surge affects supply when it explicitly must not (see Toggle 2 above). Instead the toggle is client-side UI state only: it recolours and labels the chart's existing evening shading and swaps in the asymmetry note, nothing more.
 
 **Wired into the page** (`app.js`): a heatwave on/off toggle and a four-step build-out control, both reading straight from `data/generation_scenarios.json`, `data/coverage.json`, and `data/battery_case.json`, never computing anything client-side. Flipping either updates the headline sentence, the hourly chart (Chart.js from cdnjs, rated vs derated, evening shaded), and the battery-case stats together, since they all key off the same `{normal|heatwave}_{build-out}` pair. A third control, off by default, recolours the Stadtteil choropleth by the selected scenario's own per-Stadtteil generation instead of static roof potential, with its own legend; unchecked, the map is exactly the roof-potential view described in section 3, undisturbed by anything in this panel.
 
@@ -322,7 +330,7 @@ Why:
 - **Nothing to host.** GitHub Pages serves files. It cannot run Python. Precomputing means the site is just files, so it is free, permanent, and cannot break at 3am.
 - **Nothing to re-derive.** The maths lives in one Python script with a name and a git history. If a number on the site looks wrong, there is exactly one place to look.
 - **Fast.** A visitor's laptop is not going to loop over 300,000 roof polygons. Reading a small JSON is instant.
-- **Small combination count.** One on/off toggle (heatwave) and four built-out steps is 8 combinations; a second on/off toggle (AC surge, commit 5) would make it 16. Precomputing 16 answers is trivial. If the count ever grows past a few dozen, revisit this.
+- **Small combination count.** One on/off toggle (heatwave) and four built-out steps is 8 precomputed generation combinations. The AC surge toggle (commit 5) does not add a ninth dimension, it is a demand-side citation with no generation number of its own, so it stays client-side UI state rather than another 8 precomputed answers; see section 4's architecture note. If a future toggle does carry its own generation number, revisit this.
 
 **Frontend: plain HTML, CSS, vanilla JavaScript, Leaflet for the map, one charting library loaded from a CDN.** No React, no npm install, no build step. Push to main, Pages serves it, done.
 

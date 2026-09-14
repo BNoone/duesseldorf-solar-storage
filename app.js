@@ -539,6 +539,18 @@ let batteryData = null;
 let scenarioChart = null;
 let scenarioHeatwave = false;
 let scenarioBuildoutPct = 11.6;
+let scenarioAcSurge = false;
+
+// IEA, "Staying cool without overheating the energy system" (28 July
+// 2025), https://www.iea.org/commentaries/staying-cool-without-overheating-the-energy-system
+// France's evening electricity demand ran 25% above off-season levels
+// during the 2025 heatwaves. A France analogue, never a Duesseldorf
+// measurement: German residential air conditioning ownership is low
+// enough that a domestic figure of this kind does not really exist to
+// cite. No demand curve is drawn, there is no hourly consumption dataset
+// for Duesseldorf; this single cited figure only shades and labels the
+// chart's existing evening window. It changes no generation number.
+const AC_SURGE_PCT = 25;
 
 // generation_scenarios.json's keys come from Python's f"{buildout_pct}"
 // (e.g. "normal_30.0"), which always keeps one decimal place. JS drops the
@@ -631,6 +643,10 @@ function renderScenarioStats() {
     only, no round-trip loss modelled.</div>`;
 }
 
+// Shades the chart's evening window always; when the AC-surge toggle is on,
+// darkens that shading and labels it with the cited France-analogue figure.
+// No demand curve is drawn, this plugin only annotates the existing
+// generation lines, it never adds a dataset of its own.
 function eveningShadePlugin() {
   return {
     id: "eveningShade",
@@ -639,12 +655,26 @@ function eveningShadePlugin() {
       if (!chartArea) return;
       const xScale = scales.x;
       const eveningHours = batteryData.evening_hours;
-      const tickWidth = xScale.getPixelForTick(1) - xScale.getPixelForTick(0);
-      const xStart = xScale.getPixelForTick(eveningHours[0]) - tickWidth / 2;
-      const xEnd = xScale.getPixelForTick(eveningHours[eveningHours.length - 1]) + tickWidth / 2;
+      // A plain number passed to getPixelForValue is used directly as the
+      // category's index and maps to its true position regardless of
+      // autoSkip, which only hides tick LABELS, not the underlying scale.
+      // getPixelForTick indexes into the post-autoSkip visible-tick array
+      // instead, so it silently mispositions the shading once labels skip.
+      const hourWidth = xScale.getPixelForValue(1) - xScale.getPixelForValue(0);
+      const xStart = xScale.getPixelForValue(eveningHours[0]) - hourWidth / 2;
+      const xEnd = xScale.getPixelForValue(eveningHours[eveningHours.length - 1]) + hourWidth / 2;
       ctx.save();
-      ctx.fillStyle = "rgba(166, 54, 3, 0.08)";
+      ctx.fillStyle = scenarioAcSurge ? "rgba(198, 40, 40, 0.16)" : "rgba(166, 54, 3, 0.08)";
       ctx.fillRect(xStart, chartArea.top, xEnd - xStart, chartArea.bottom - chartArea.top);
+      if (scenarioAcSurge) {
+        const midX = (xStart + xEnd) / 2;
+        ctx.fillStyle = "#a61b1b";
+        ctx.textAlign = "center";
+        ctx.font = "600 11px -apple-system, BlinkMacSystemFont, sans-serif";
+        ctx.fillText(`+${AC_SURGE_PCT}% evening demand`, midX, chartArea.top + 14);
+        ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
+        ctx.fillText("(France analogue, IEA)", midX, chartArea.top + 27);
+      }
       ctx.restore();
     },
   };
@@ -707,16 +737,29 @@ function renderScenarioChart() {
   });
 }
 
+function renderChartCaption() {
+  const caption = document.getElementById("chart-caption");
+  caption.textContent = scenarioAcSurge
+    ? "Hourly generation, rated (undegraded) vs derated. Evening (18:00–21:59) shaded, labelled with the cited AC-surge figure. That figure describes demand; the generation lines above are unchanged by it."
+    : "Hourly generation, rated (undegraded) vs derated. Evening (18:00–21:59) shaded.";
+}
+
 function updateScenarioView() {
   if (!generationData || !coverageData || !batteryData) return;
   renderScenarioHeadline();
   renderScenarioChart();
   renderScenarioStats();
+  renderChartCaption();
   if (colorMode === "scenario") recolorMap();
 }
 
 document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
   scenarioHeatwave = e.target.checked;
+  updateScenarioView();
+});
+
+document.getElementById("toggle-ac-surge").addEventListener("change", (e) => {
+  scenarioAcSurge = e.target.checked;
   updateScenarioView();
 });
 

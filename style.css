@@ -468,10 +468,22 @@ footer a {
   text-align: center;
 }
 
-.scenario-stats {
+.scenario-stats-wrap {
   flex: 0 0 260px;
+}
+
+.scenario-stats {
   font-size: 12px;
   color: #1f2933;
+}
+
+.scenario-asymmetry-note {
+  font-size: 10px;
+  color: #8a8f98;
+  font-style: italic;
+  margin-top: 10px;
+  border-top: 1px solid #ececea;
+  padding-top: 8px;
 }
 
 .scenario-stats h3 {
