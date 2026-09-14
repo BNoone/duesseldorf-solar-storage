@@ -17,6 +17,8 @@ The heatwave PV derate now has a real formula (NOCT cell temperature model, temp
 
 Also fixed: the `fetch_mastr.py` known-trap entry (section 13) still listed the old two-table download, missing `storage_units`, after that was already corrected in v2.3's own commit. Both now agree.
 
+The battery case is computed (`scripts/build_battery.py`): a 1.5 kWh/kWp battery can absorb about 70% of midday generation at every build-out level alike, a fixed property of the sizing choice, not of how much of the city is built out. The whole panel, heatwave toggle, four-step build-out control, hourly chart (Chart.js), and battery-case stats, is now wired into the live page, reading only precomputed JSON, never computing in the browser. A fourth, off-by-default control recolours the Stadtteil choropleth by the selected scenario's own generation instead of roof potential.
+
 **v2.3 (2026-09-14):** one geography, not two. The PLZ choropleth built in v2.1/v2.2 is removed.
 
 A live version briefly shipped both a Stadtteil potential view and a PLZ realization view, switched by a radio control. Two views of the same city, on two geographies that do not nest, read as competing rather than complementary. Before changing anything, measured how much the two geographies actually cross, weighted by roof potential across the 48,467 qualifying buildings that got both a Stadtteil and a PLZ assignment:
@@ -268,13 +270,31 @@ Steps, not a free slider. Shows what the city's generation and battery potential
 
 ### Battery case: midday surplus, evening gap
 
-Generation peaks around midday and is close to zero by evening; consumption does not follow that shape. Storage sized at 1.5 kWh per kWp (the HTW Berlin upper bound, section 3) is shown against both the matched normal day and the heatwave day: how much of the day's midday surplus a battery that size could shift into the evening. The chart accompanying this makes the same point visually: hourly output across the heatwave day, rated against derated, with the evening hours marked, so the reason storage matters is visible, not just stated.
+Generation peaks around midday and is close to zero by evening; consumption does not follow that shape. No demand curve is used here either, this is a generation-side accounting only. Storage sized at 1.5 kWh per kWp (the HTW Berlin upper bound, section 3) is shown against both the matched normal day and the heatwave day: how much of the day's midday generation a battery that size could shift into the evening.
+
+**Hour windows** (`scripts/build_battery.py`, `common.py`), a stated modelling convention, not a sourced figure: midday is 11:00-15:59, each day's generation plateau; evening is 18:00-21:59, the same window the AC-surge toggle shades, chosen to line up with the IEA France-analogue evening peak already cited above.
+
+**Computed, citywide, at today's 12% build-out:**
+
+| | Normal day (25 Aug 2025) | Heatwave worst day (26 Jun 2026) |
+|---|---|---|
+| Midday generation | 345,791 kWh | 346,544 kWh |
+| Evening generation | 74,532 kWh | 48,105 kWh |
+| Battery capacity (1.5 kWh/kWp) | 242,295 kWh | 242,295 kWh |
+| Shiftable to evening | 242,295 kWh (70% of midday) | 242,295 kWh (70% of midday) |
+| Evening with battery | 316,827 kWh (4.25x) | 290,400 kWh (6.04x) |
+
+**A robust finding, not just a today's-build-out number:** the shiftable share of midday generation comes out to 70.1% at every build-out level, 12%, 30%, 50%, and 100% alike. Battery capacity and midday generation both scale with build-out in exactly the same proportion (both track installed kWp linearly), so their ratio is a fixed property of the 1.5 kWh/kWp sizing choice itself, not of how much of the city is built out. No round-trip efficiency loss is modelled; this is a capacity limit only, a simplification stated on the page.
+
+The chart accompanying this makes the shape point visually: hourly output across the selected day, rated against derated, with the evening hours shaded, so the reason storage matters is visible, not just stated.
 
 ### Architecture note specific to this panel
 
 ERA5 is fetched once per Stadtteil centroid (50 locations), not per building. Per-building would be roughly 117,000 locations and run for days; a building-scale derate model does not need building-scale weather, since air temperature does not vary meaningfully within a neighbourhood the size of a Stadtteil. See `scripts/fetch_era5.py`.
 
 Every combination of heatwave on/off and build-out level is precomputed to static JSON; commit 5, if it lands, doubles that with AC surge on/off. The browser only ever selects a precomputed value, never calculates one. This is the same non-negotiable rule as the rest of the scenario panel (section 6).
+
+**Wired into the page** (`app.js`): a heatwave on/off toggle and a four-step build-out control, both reading straight from `data/generation_scenarios.json`, `data/coverage.json`, and `data/battery_case.json`, never computing anything client-side. Flipping either updates the headline sentence, the hourly chart (Chart.js from cdnjs, rated vs derated, evening shaded), and the battery-case stats together, since they all key off the same `{normal|heatwave}_{build-out}` pair. A third control, off by default, recolours the Stadtteil choropleth by the selected scenario's own per-Stadtteil generation instead of static roof potential, with its own legend; unchecked, the map is exactly the roof-potential view described in section 3, undisturbed by anything in this panel.
 
 ## 5. Two weather years, on purpose
 

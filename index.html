@@ -45,11 +45,45 @@
         <div class="drilldown-status" id="drilldown-status"></div>
       </div>
     </div>
+    <section id="scenario-panel" class="scenario-panel">
+      <div class="scenario-heading">
+        <h2>Scenario: normal day vs heatwave</h2>
+        <p class="scenario-intro">Same rooftops, two conditions. How much energy on a normal day, how much on a heatwave day. A thought experiment, not a forecast.</p>
+      </div>
+      <div class="scenario-controls">
+        <label class="scenario-toggle">
+          <input type="checkbox" id="toggle-heatwave">
+          <span>Heatwave (24&ndash;28 June 2026)</span>
+        </label>
+        <div class="buildout-control">
+          <span class="buildout-control-label">Build-out</span>
+          <div class="buildout-steps" id="buildout-steps">
+            <button type="button" class="buildout-step active" data-pct="11.6">12%</button>
+            <button type="button" class="buildout-step" data-pct="30.0">30%</button>
+            <button type="button" class="buildout-step" data-pct="50.0">50%</button>
+            <button type="button" class="buildout-step" data-pct="100.0">100%</button>
+          </div>
+        </div>
+        <label class="scenario-toggle map-color-toggle">
+          <input type="checkbox" id="toggle-map-color">
+          <span>Colour the map by this scenario's generation</span>
+        </label>
+      </div>
+      <div class="scenario-headline" id="scenario-headline">Loading scenario data...</div>
+      <div class="scenario-body">
+        <div class="scenario-chart-wrap">
+          <canvas id="scenario-chart" height="220"></canvas>
+          <div class="chart-caption">Hourly generation, rated (undegraded) vs derated. Evening (18:00&ndash;21:59) shaded.</div>
+        </div>
+        <div class="scenario-stats" id="scenario-stats"></div>
+      </div>
+    </section>
     <footer id="footer">
       Sources: Solarkataster NRW (opengeodata.nrw.de) and Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025.
     </footer>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
