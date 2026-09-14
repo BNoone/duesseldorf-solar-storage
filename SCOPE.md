@@ -229,6 +229,20 @@ The page then says something concrete, built from these two days and the multi-d
 
 Sources: [2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_heatwaves); [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) (ERA5) for both the heatwave window and the matched normal day.
 
+**Computed** (`scripts/build_generation.py`, citywide, at today's 11.6% build-out; every build-out level scales linearly from these, since build-out below 100% is modelled as a uniform scaling of the whole city's output, not a choice of which roofs get built):
+
+| | Normal day (25 Aug 2025) | Heatwave worst day (26 Jun 2026) |
+|---|---|---|
+| Rated (undegraded) | 647,970 kWh | 643,965 kWh (-0.6%, the GTI match) |
+| Derated | 606,166 kWh | 574,275 kWh |
+| Lost to derate | 6.45% | 10.82% |
+
+**Headline: 574,275 kWh on the heatwave worst day against 606,166 kWh on the matched normal day, 31,891 kWh less, 5.3%.** That 5.3% is smaller than the worst-hour derate (14.18%) because derate only bites during the hottest, sunniest hours; mornings and evenings barely notice. It is also smaller than the raw heat-versus-normal derate gap (10.82% minus 6.45% = 4.37 points) because the two days do not start from identical sun either, the GTI match is close (+0.6%) but not exact.
+
+**Worth stating on the page, since it is genuinely surprising:** even the matched *normal* day loses 6.45% to derate. That is not a bug. Panels run well above air temperature in full midday sun on any clear summer day (the NOCT model adds roughly 28 degC to a 900 W/m² midday reading), so some derate is ordinary, not a heatwave-specific effect. What the heatwave actually adds is the difference between 6.45% and 10.82%, not the full 10.82%.
+
+**Across the full 24-28 June window**, not just the worst day: 3,073,892 kWh derated total, average daylight derate 6.56%, 345,203 kWh lost to derate over the five days. The worst single hour anywhere in the window reached 14.18% derate.
+
 ### Toggle 2 · Heatwave: AC demand surge
 
 Evening demand rises during heat. There is no Duesseldorf consumption dataset, and none is invented. Instead: **+25% on the evening peak**, sourced to the IEA commentary ["Staying cool without overheating the energy system"](https://www.iea.org/commentaries/staying-cool-without-overheating-the-energy-system) (28 July 2025), which reports France at 25% above off-season demand during the 2025 heatwaves. France is the stated analogue because German residential air conditioning ownership is low, so a German figure of this kind does not really exist to cite.

@@ -43,6 +43,7 @@ python3 scripts/build_plz.py
 python3 scripts/build_postcode_facts.py
 python3 scripts/fetch_era5.py
 python3 scripts/find_heatwave_window.py
+python3 scripts/build_generation.py
 ```
 
 - `fetch_solarkataster.py` downloads the Solarkataster NRW roof-potential shapefile for Duesseldorf (opengeodata.nrw.de, ~98 MB, skips if already present).
@@ -56,6 +57,7 @@ python3 scripts/find_heatwave_window.py
 - `build_postcode_facts.py` joins the same building-level potential to both Stadtteil and PLZ at once, computes each Stadtteil's share of potential per overlapping postcode, attaches that postcode's own facts from `data/plz.json`, and writes `data/postcode_facts.json`.
 - `fetch_era5.py` fetches hourly global tilted irradiance and air temperature for all 50 Stadtteil centroids, full year 2025 plus June 2026, from Open-Meteo's ERA5 archive. About 100 calls, 5-10 minutes; cached to `data/raw/era5_checkpoint.json` with a fetch-retry-checkpoint pattern, so a rerun after a network failure never re-fetches what it already has.
 - `find_heatwave_window.py` reads that cache and finds Duesseldorf's own heatwave window in June 2026 (24-28 June, worst day 26 June at 38.1 degC citywide mean) and a matched normal day from 2025 (25 August, GTI within 0.6% of the heatwave's worst day, so the comparison isolates heat rather than also measuring cloud cover). Both are recorded in `common.py` for the build scripts that use them.
+- `build_generation.py` is the spine of the scenario panel: hourly rated and derated generation on the matched normal day and across the full heatwave window, at every build-out level (11.6%, 30%, 50%, 100%), both citywide and per Stadtteil. Derate uses the NOCT cell temperature model and the -0.35%/degC coefficient applied to cell temperature. Rated generation scales real ERA5 irradiance so the full 2025 year reproduces each Stadtteil's cadastre annual yield exactly at 100% build-out, so this never becomes a second, disagreeing generation figure. Writes `data/generation_scenarios.json` (8 precomputed scenario combinations, 44 KB). Not wired into the page yet.
 - `common.py` holds the constants and the exclusion rule shared by the roof-potential build scripts, so the rule cannot drift between them, plus the heatwave derate model constants and the found heatwave window and matched normal day.
 
 Downloaded source files land in `data/raw/`, gitignored, not committed.
