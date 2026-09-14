@@ -41,6 +41,8 @@ python3 scripts/build_roofs.py
 python3 scripts/build_storage.py
 python3 scripts/build_plz.py
 python3 scripts/build_postcode_facts.py
+python3 scripts/fetch_era5.py
+python3 scripts/find_heatwave_window.py
 ```
 
 - `fetch_solarkataster.py` downloads the Solarkataster NRW roof-potential shapefile for Duesseldorf (opengeodata.nrw.de, ~98 MB, skips if already present).
@@ -52,6 +54,8 @@ python3 scripts/build_postcode_facts.py
 - `build_storage.py` queries the local MaStR database for Duesseldorf units above 100 kW, NRW units above 1 MW, and the Duesseldorf citywide unit count and combined capacity, and writes the two storage map JSON files.
 - `build_plz.py` reuses `build_stadtteile.py`'s building-level potential, aggregates it to postcode instead of Stadtteil, joins registered PV and registered storage (via the storage_units kWh join) from MaStR's own `Postleitzahl` field, and writes `data/plz.json`. No geometry in the output; nothing renders this as a shape.
 - `build_postcode_facts.py` joins the same building-level potential to both Stadtteil and PLZ at once, computes each Stadtteil's share of potential per overlapping postcode, attaches that postcode's own facts from `data/plz.json`, and writes `data/postcode_facts.json`.
-- `common.py` holds the constants and the exclusion rule shared by the roof-potential build scripts, so the rule cannot drift between them.
+- `fetch_era5.py` fetches hourly global tilted irradiance and air temperature for all 50 Stadtteil centroids, full year 2025 plus June 2026, from Open-Meteo's ERA5 archive. About 100 calls, 5-10 minutes; cached to `data/raw/era5_checkpoint.json` with a fetch-retry-checkpoint pattern, so a rerun after a network failure never re-fetches what it already has.
+- `find_heatwave_window.py` reads that cache and finds Duesseldorf's own heatwave window in June 2026 (24-28 June, worst day 26 June at 38.1 degC citywide mean) and a matched normal day from 2025 (25 August, GTI within 0.6% of the heatwave's worst day, so the comparison isolates heat rather than also measuring cloud cover). Both are recorded in `common.py` for the build scripts that use them.
+- `common.py` holds the constants and the exclusion rule shared by the roof-potential build scripts, so the rule cannot drift between them, plus the heatwave derate model constants and the found heatwave window and matched normal day.
 
 Downloaded source files land in `data/raw/`, gitignored, not committed.

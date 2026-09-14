@@ -33,6 +33,45 @@ QUALIFYING_RULE_SENTENCE = (
 # Result: 161,327.6 kWp across 11,804 units.
 REGISTERED_PV_KWP = 161_327.6
 
+# --- Heatwave derate model (SCOPE.md section 4, decided, do not re-open) ---
+
+# Temperature coefficient on Pmax, percent per degree C of CELL temperature
+# (never air temperature, which understates the derate roughly fourfold).
+# -0.35%/degC is the point estimate; the page states the -0.29 to -0.40
+# range too, since a city's roof stock spans many module ages and makers.
+TEMP_COEFF_PCT_PER_C = -0.35
+TEMP_COEFF_RANGE_PCT_PER_C = (-0.29, -0.40)
+
+# NOCT cell temperature model. T_cell = T_air + (NOCT - 20) / 800 * GTI.
+NOCT_C = 45.0
+
+# Derate = max(0, (T_cell - 25) * 0.35%). No efficiency gain modelled below
+# 25 degC.
+DERATE_REFERENCE_TEMP_C = 25.0
+
+# GTI fetch convention, matching fetch_era5.py and the v1-validated choice.
+GTI_TILT_DEG = 35
+GTI_AZIMUTH_DEG = 0  # Open-Meteo convention: 0 = south
+
+# Heatwave window and matched normal day, found by
+# scripts/find_heatwave_window.py from the fetched ERA5 data (citywide mean
+# across the 50 Stadtteil centroids). Germany's national records on 26-28
+# June 2026 were set in Saarland and Brandenburg; Duesseldorf's own peak
+# lands one day later than the coolest edge of that window and one day
+# earlier at the hot edge, a five-day stretch, not a single day.
+HEATWAVE_WINDOW = ["2026-06-24", "2026-06-25", "2026-06-26", "2026-06-27", "2026-06-28"]
+HEATWAVE_WORST_DAY = "2026-06-26"  # 38.1 degC citywide mean daily max
+MATCHED_NORMAL_DAY = "2025-08-25"  # GTI within 0.6% of the worst day, max temp 24.2 degC
+
+# Duesseldorf electricity consumption, 2022, Landeshauptstadt Duesseldorf,
+# "Energie- und Treibhausgasbilanz 2022" (Amt fuer Umwelt- und
+# Verbraucherschutz), page 14, "Energieverbrauch in GWh" table, Strom row,
+# summed across all four sectors as the report itself presents it:
+#   GHDI 1,599 + KE 107 + HH 1,171 + V 172 = 3,049 GWh
+# Source: https://www.duesseldorf.de/fileadmin/Amt19/umweltamt/klimaschutz/pdf/klimaschutz/19_Klimafreundliches_Duesseldorf_2022_web_bf.pdf
+CITY_ELECTRICITY_CONSUMPTION_GWH = 3049.0
+CITY_ELECTRICITY_CONSUMPTION_YEAR = 2022
+
 
 def exclude_north_facing_pitched(facets):
     """Drop facets where dachtyp == 'geneigt' and himmel_kat == 'Nord'.
