@@ -13,7 +13,7 @@ Read this file at the start of every session, before anything else. If the repo 
 
 **v2.4 (2026-09-14):** the scenario panel gets its actual model. Section 4 rewritten in full.
 
-The heatwave PV derate now has a real formula (NOCT cell temperature model, temperature coefficient applied to cell temperature, never air temperature, which was flagged in advance as the easiest thing in this batch to get wrong). Duesseldorf's own heatwave window was checked against ERA5 rather than assumed to match the national records: 24-28 June 2026, five days, worst day 26 June at 38.1 degC citywide mean. A matched normal day (25 August 2025) was found by searching 2025's summer for the closest GTI total, so the heatwave comparison isolates temperature rather than also measuring cloud cover. The built-out control gains a 100% step, required because the project's own premise is "every suitable rooftop carries solar." The AC demand surge toggle is decided (IEA France-analogue figure, +25% on the evening peak, never presented as a Duesseldorf measurement) even though it ships last, in an optional commit 5. City electricity consumption (3,049 GWh, 2022) is sourced to Duesseldorf's own Energie- und Treibhausgasbilanz, not a national or regional dataset.
+The heatwave PV derate now has a real formula (NOCT cell temperature model, temperature coefficient applied to cell temperature, never air temperature, which was flagged in advance as the easiest thing in this batch to get wrong). Duesseldorf's own heatwave window was checked against ERA5 rather than assumed to match the national records: 24-28 June 2026, five days, worst day 26 June at 38.1 degC citywide mean. A matched normal day (25 August 2025) was found by searching 2025's summer for the closest GTI total, so the heatwave comparison isolates temperature rather than also measuring cloud cover. The built-out control gains a 100% step, required because the project's own premise is "every suitable rooftop carries solar." The AC demand surge toggle is decided (IEA France-analogue figure, +25% on the evening peak, never presented as a Duesseldorf measurement) even though it ships last, in an optional commit 5. City electricity consumption (3,049 GWh, 2022) is sourced to Duesseldorf's own Energie- und Treibhausgasbilanz, not a national or regional dataset. Annual generation at each build-out level was then set against that consumption figure to produce the page's headline sentence: at full build-out, rooftop solar alone would cover 37% of the city's own electricity use.
 
 Also fixed: the `fetch_mastr.py` known-trap entry (section 13) still listed the old two-table download, missing `storage_units`, after that was already corrected in v2.3's own commit. Both now agree.
 
@@ -254,6 +254,17 @@ Labelled on the page as a **France analogue**, never as a Duesseldorf measuremen
 ### Control 3 · Built out at 12% / 30% / 50% / 100%
 
 Steps, not a free slider. Shows what the city's generation and battery potential look like at each level of rooftop build-out. 12% is today's measured realization rate (11.6%, rounded), recomputed with north-facing pitched facets excluded, see section 3; this replaces v2.1's 10% (9.6% rounded, before the exclusion) and v2's 14% (the per-facet figure), both now superseded. **100% is required, not optional:** the whole thought experiment this project is built around is "every suitable rooftop carries solar," and a built-out control that stops short of that number never actually answers the question the page opens with.
+
+**City coverage at each level** (`scripts/build_coverage.py`; annual generation at 100% build-out is the Solarkataster cadastre's own total, `data/stadtteile.json`, other levels scale it uniformly; against the city's own annual electricity consumption, 3,049 GWh in 2022, Duesseldorf's Energie- und Treibhausgasbilanz 2022, see section 3):
+
+| Build-out | Annual generation | Share of city consumption |
+|---|---|---|
+| 12% | 129.4 GWh | 4.2% |
+| 30% | 334.8 GWh | 11.0% |
+| 50% | 557.9 GWh | 18.3% |
+| 100% | 1,115.8 GWh | 36.6% |
+
+**The most important sentence on the site:** Duesseldorf's rooftops could generate 1,116 GWh a year, the city uses 3,049 GWh (2022), so at full build-out rooftop solar alone would cover 37% of it.
 
 ### Battery case: midday surplus, evening gap
 
