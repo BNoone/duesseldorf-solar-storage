@@ -105,9 +105,15 @@ function polygonAreaAndCentroid(geometry) {
   return { totalArea, centroid: best.centroid };
 }
 
-function showLegend(title, breaks, minValue, maxValue) {
-  const legend = L.control({ position: "bottomright" });
-  legend.onAdd = function () {
+let legendControl = null;
+
+// Re-callable so the scenario panel's "colour the map" toggle can swap the
+// legend between roof potential and scenario generation without leaving a
+// stale control behind.
+function updateLegend(title, breaks, minValue, maxValue) {
+  if (legendControl) map.removeControl(legendControl);
+  legendControl = L.control({ position: "bottomright" });
+  legendControl.onAdd = function () {
     const div = L.DomUtil.create("div", "legend");
     const edges = [minValue, ...breaks, maxValue];
     let html = `<div class="legend-title">${title}</div>`;
@@ -123,7 +129,35 @@ function showLegend(title, breaks, minValue, maxValue) {
     div.innerHTML = html;
     return div;
   };
-  legend.addTo(map);
+  legendControl.addTo(map);
+}
+
+// Which per-Stadtteil value currently drives the choropleth: static roof
+// potential (the default, always available) or the selected scenario's
+// generation (only once the scenario panel's own data has loaded and its
+// "colour the map" toggle is on). Kept as one function so hover/reset and
+// the initial paint never disagree about the current styling.
+let colorMode = "potential";
+let potentialBreaksInfo = null;
+let scenarioBreaksInfo = null;
+
+function activeStyleFn(feature) {
+  if (colorMode === "scenario" && scenarioBreaksInfo) {
+    const st = generationData.by_stadtteil[feature.properties.name];
+    const val = st ? st[scenarioKey()].total_derated_kwh : 0;
+    return {
+      fillColor: colorForValue(val, scenarioBreaksInfo.breaks),
+      fillOpacity: 0.8,
+      color: "#ffffff",
+      weight: 1,
+    };
+  }
+  return {
+    fillColor: colorForValue(feature.properties.total_kwp, potentialBreaksInfo.breaks),
+    fillOpacity: 0.8,
+    color: "#ffffff",
+    weight: 1,
+  };
 }
 
 function updateHeaderTotals(features, properties) {
@@ -255,18 +289,11 @@ fetch("data/stadtteile.json")
   .then((res) => res.json())
   .then((data) => {
     const values = data.features.map((f) => f.properties.total_kwp);
-    const breaks = quantileBreaks(values, CHOROPLETH_COLORS.length);
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-
-    function styleFeature(feature) {
-      return {
-        fillColor: colorForValue(feature.properties.total_kwp, breaks),
-        fillOpacity: 0.8,
-        color: "#ffffff",
-        weight: 1,
-      };
-    }
+    potentialBreaksInfo = {
+      breaks: quantileBreaks(values, CHOROPLETH_COLORS.length),
+      min: Math.min(...values),
+      max: Math.max(...values),
+    };
 
     function highlightFeature(e) {
       const layer = e.target;
@@ -275,7 +302,7 @@ fetch("data/stadtteile.json")
     }
 
     function resetFeature(e) {
-      stadtteilLayer.resetStyle(e.target);
+      e.target.setStyle(activeStyleFn(e.target.feature));
     }
 
     function onEachFeature(feature, layer) {
@@ -294,7 +321,7 @@ fetch("data/stadtteile.json")
     }
 
     stadtteilLayer = L.geoJSON(data, {
-      style: styleFeature,
+      style: activeStyleFn,
       onEachFeature: onEachFeature,
     }).addTo(map);
 
@@ -322,7 +349,7 @@ fetch("data/stadtteile.json")
     });
     stadtteilLabels.addTo(map);
 
-    showLegend("Roof potential (kWp)", breaks, minValue, maxValue);
+    updateLegend("Roof potential (kWp)", potentialBreaksInfo.breaks, potentialBreaksInfo.min, potentialBreaksInfo.max);
     updateHeaderTotals(data.features, data.properties);
     updateFooter(data.properties);
 
@@ -498,3 +525,226 @@ function postcodeFactsHtml(stadtteilName) {
 function updatePostcodeFacts(stadtteilName) {
   document.getElementById("drilldown-postcodes").innerHTML = postcodeFactsHtml(stadtteilName);
 }
+
+// --- Scenario panel: heatwave derate, city coverage, battery case ----------
+//
+// All three datasets here are fully precomputed (scripts/build_generation.py,
+// build_coverage.py, build_battery.py); this file only ever selects a value
+// out of them for the current toggle state, never calculates one. See
+// SCOPE.md section 4.
+
+let generationData = null;
+let coverageData = null;
+let batteryData = null;
+let scenarioChart = null;
+let scenarioHeatwave = false;
+let scenarioBuildoutPct = 11.6;
+
+// generation_scenarios.json's keys come from Python's f"{buildout_pct}"
+// (e.g. "normal_30.0"), which always keeps one decimal place. JS drops the
+// trailing .0 for whole numbers when a number is concatenated into a
+// string, so every lookup must go through this fixed formatting or a
+// build-out of 30/50/100% silently misses the key.
+function buildoutKeySuffix() {
+  return scenarioBuildoutPct.toFixed(1);
+}
+
+function scenarioKey() {
+  return (scenarioHeatwave ? "heatwave" : "normal") + "_" + buildoutKeySuffix();
+}
+
+function formatGwh(n) {
+  return n.toLocaleString("en-US", { maximumFractionDigits: 1 }) + " GWh";
+}
+
+function formatDate(iso) {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
+function computeScenarioBreaks(key) {
+  const values = Object.values(generationData.by_stadtteil).map((st) => st[key].total_derated_kwh);
+  return {
+    breaks: quantileBreaks(values, CHOROPLETH_COLORS.length),
+    min: Math.min(...values),
+    max: Math.max(...values),
+  };
+}
+
+function recolorMap() {
+  if (!stadtteilLayer || !generationData) return;
+  if (colorMode === "scenario") {
+    scenarioBreaksInfo = computeScenarioBreaks(scenarioKey());
+    const dayLabel = scenarioHeatwave ? "Heatwave worst day" : "Normal day";
+    updateLegend(`${dayLabel} generation (kWh)`, scenarioBreaksInfo.breaks, scenarioBreaksInfo.min, scenarioBreaksInfo.max);
+  } else {
+    updateLegend("Roof potential (kWp)", potentialBreaksInfo.breaks, potentialBreaksInfo.min, potentialBreaksInfo.max);
+  }
+  stadtteilLayer.eachLayer((l) => l.setStyle(activeStyleFn(l.feature)));
+}
+
+function renderScenarioHeadline() {
+  const key = scenarioKey();
+  const c = generationData.citywide[key];
+  const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
+
+  let html = "";
+  if (scenarioHeatwave) {
+    const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
+    const diffKwh = normalC.total_derated_kwh - c.total_derated_kwh;
+    const diffPct = (diffKwh / normalC.total_derated_kwh) * 100;
+    const windowLostKwh = c.window_total_rated_kwh - c.window_total_derated_kwh;
+    html += `<strong>${formatNumber(c.total_derated_kwh)} kWh</strong> generated on the heatwave's worst day ` +
+      `(${formatDate(c.day)}), against <strong>${formatNumber(normalC.total_derated_kwh)} kWh</strong> on the ` +
+      `matched normal day (${formatDate(normalC.day)}): <strong>${formatNumber(diffKwh)} kWh less, ${diffPct.toFixed(1)}%</strong>, ` +
+      `at ${cov.buildout_label} build-out.`;
+    html += `<span class="headline-note">Worst-hour derate ${c.worst_hour_derate_pct}%. Across the full ` +
+      `24&ndash;28 June window: ${formatNumber(c.window_total_derated_kwh)} kWh generated, ` +
+      `${formatNumber(windowLostKwh)} kWh lost to derate, average daylight derate ${c.avg_daylight_derate_pct}%.</span>`;
+  } else {
+    const lostPct = (1 - c.total_derated_kwh / c.total_rated_kwh) * 100;
+    html += `<strong>${formatNumber(c.total_derated_kwh)} kWh</strong> generated on a matched normal day ` +
+      `(${formatDate(c.day)}) at ${cov.buildout_label} build-out (rated ${formatNumber(c.total_rated_kwh)} kWh, ` +
+      `${lostPct.toFixed(1)}% lost to ordinary heat derate, not a heatwave effect).`;
+  }
+  html += `<span class="headline-note">At ${cov.buildout_label} build-out, Duesseldorf's rooftops generate ` +
+    `${formatGwh(cov.annual_gwh)} a year, ${cov.coverage_pct}% of the city's own ${formatGwh(coverageData.city_consumption_gwh)} ` +
+    `electricity use (${coverageData.city_consumption_year}).</span>`;
+
+  document.getElementById("scenario-headline").innerHTML = html;
+}
+
+function renderScenarioStats() {
+  const b = batteryData.citywide[scenarioKey()];
+  document.getElementById("scenario-stats").innerHTML = `
+    <h3>Battery case, 1.5 kWh/kWp</h3>
+    <table>
+      <tr><td class="label">Battery capacity</td><td class="value">${formatNumber(b.battery_kwh)} kWh</td></tr>
+      <tr><td class="label">Midday generation (11:00&ndash;15:59)</td><td class="value">${formatNumber(b.midday_kwh)} kWh</td></tr>
+      <tr><td class="label">Evening generation (18:00&ndash;21:59)</td><td class="value">${formatNumber(b.evening_kwh)} kWh</td></tr>
+      <tr><td class="label">Shiftable to evening</td><td class="value">${formatNumber(b.shiftable_kwh)} kWh</td></tr>
+      <tr><td class="label">Evening with battery</td><td class="value">${formatNumber(b.evening_with_battery_kwh)} kWh</td></tr>
+    </table>
+    <div class="stats-note">A battery this size could shift ${b.shiftable_pct_of_midday}% of midday's generation,
+    raising evening generation to ${b.evening_multiple}&times; what those hours produce on their own. Capacity limit
+    only, no round-trip loss modelled.</div>`;
+}
+
+function eveningShadePlugin() {
+  return {
+    id: "eveningShade",
+    beforeDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const xScale = scales.x;
+      const eveningHours = batteryData.evening_hours;
+      const tickWidth = xScale.getPixelForTick(1) - xScale.getPixelForTick(0);
+      const xStart = xScale.getPixelForTick(eveningHours[0]) - tickWidth / 2;
+      const xEnd = xScale.getPixelForTick(eveningHours[eveningHours.length - 1]) + tickWidth / 2;
+      ctx.save();
+      ctx.fillStyle = "rgba(166, 54, 3, 0.08)";
+      ctx.fillRect(xStart, chartArea.top, xEnd - xStart, chartArea.bottom - chartArea.top);
+      ctx.restore();
+    },
+  };
+}
+
+function renderScenarioChart() {
+  const c = generationData.citywide[scenarioKey()];
+  const labels = c.hourly_rated_kwh.map((_, h) => String(h).padStart(2, "0") + ":00");
+
+  const data = {
+    labels,
+    datasets: [
+      {
+        label: "Rated",
+        data: c.hourly_rated_kwh,
+        borderColor: "#c9c3b6",
+        backgroundColor: "transparent",
+        borderDash: [4, 3],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.25,
+      },
+      {
+        label: "Derated",
+        data: c.hourly_derated_kwh,
+        borderColor: "#a63603",
+        backgroundColor: "rgba(166, 54, 3, 0.1)",
+        fill: true,
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.25,
+      },
+    ],
+  };
+
+  if (scenarioChart) {
+    scenarioChart.data = data;
+    scenarioChart.update();
+    return;
+  }
+
+  const ctx = document.getElementById("scenario-chart").getContext("2d");
+  scenarioChart = new Chart(ctx, {
+    type: "line",
+    data,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { callback: (v) => formatNumber(v) } },
+      },
+      plugins: {
+        legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} kWh` } },
+      },
+    },
+    plugins: [eveningShadePlugin()],
+  });
+}
+
+function updateScenarioView() {
+  if (!generationData || !coverageData || !batteryData) return;
+  renderScenarioHeadline();
+  renderScenarioChart();
+  renderScenarioStats();
+  if (colorMode === "scenario") recolorMap();
+}
+
+document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
+  scenarioHeatwave = e.target.checked;
+  updateScenarioView();
+});
+
+document.querySelectorAll(".buildout-step").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    scenarioBuildoutPct = parseFloat(btn.dataset.pct);
+    document.querySelectorAll(".buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
+    updateScenarioView();
+  });
+});
+
+document.getElementById("toggle-map-color").addEventListener("change", (e) => {
+  colorMode = e.target.checked ? "scenario" : "potential";
+  recolorMap();
+});
+
+Promise.all([
+  fetch("data/generation_scenarios.json").then((res) => res.json()),
+  fetch("data/coverage.json").then((res) => res.json()),
+  fetch("data/battery_case.json").then((res) => res.json()),
+])
+  .then(([gen, cov, batt]) => {
+    generationData = gen;
+    coverageData = cov;
+    batteryData = batt;
+    updateScenarioView();
+  })
+  .catch((err) => {
+    document.getElementById("scenario-headline").textContent = "Could not load scenario data.";
+    console.error(err);
+  });

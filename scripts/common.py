@@ -72,6 +72,14 @@ MATCHED_NORMAL_DAY = "2025-08-25"  # GTI within 0.6% of the worst day, max temp 
 CITY_ELECTRICITY_CONSUMPTION_GWH = 3049.0
 CITY_ELECTRICITY_CONSUMPTION_YEAR = 2022
 
+# Battery case hour windows (SCOPE.md section 4), a stated modelling
+# convention, not a sourced figure: midday is each day's generation
+# plateau, evening is the window the AC-surge toggle (commit 5) also
+# shades, chosen to line up with the IEA France-analogue evening peak
+# already cited on the page. Mirrored in app.js for the chart shading.
+MIDDAY_HOURS = [11, 12, 13, 14, 15]
+EVENING_HOURS = [18, 19, 20, 21]
+
 
 def exclude_north_facing_pitched(facets):
     """Drop facets where dachtyp == 'geneigt' and himmel_kat == 'Nord'.

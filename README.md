@@ -8,7 +8,7 @@ Full plan, decisions, and reasoning: [SCOPE.md](SCOPE.md). Read that first.
 
 https://bnoone.github.io/duesseldorf-solar-storage/
 
-Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp), the only geography on the map. Click one to see every qualifying building in it, plus the postcodes it sits in and their own exact PV, realization, and storage figures. Toggle the storage layer to see Duesseldorf's large battery units and NRW's for scale. The scenario panel is not wired up yet.
+Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp), the only geography on the map by default. Click one to see every qualifying building in it, plus the postcodes it sits in and their own exact PV, realization, and storage figures. Toggle the storage layer to see Duesseldorf's large battery units and NRW's for scale. Below the map, the scenario panel compares a matched normal day against Duesseldorf's own June 2026 heatwave, at four build-out levels, with an hourly chart and a battery-case summary; an optional control recolours the map by that scenario's own generation instead of roof potential.
 
 ## What is built so far
 
@@ -25,6 +25,8 @@ Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp), the only 
 - `data/storage_duesseldorf.json` / `data/storage_nrw_large.json`: the two storage map datasets above, precomputed from the local MaStR pull.
 - `data/plz.json`: each Duesseldorf postcode's own exact roof potential, registered PV, realization, and registered storage (units and kWh). Not a map layer, carries no geometry; it exists only to feed the postcode breakdown below.
 - `data/postcode_facts.json`: the Stadtteil-to-postcode breakdown itself, one entry per Stadtteil, each an ordered list of the postcodes it overlaps with their own facts attached from `data/plz.json`.
+- The scenario panel, below the map: same rooftops, two conditions. A heatwave on/off toggle (Duesseldorf's own 24-28 June 2026 window against a matched normal day) and a four-step build-out control (12/30/50/100%) update the headline sentence, an hourly Chart.js chart (rated vs derated generation, evening hours shaded), and a battery-case summary together, all read from precomputed JSON, nothing computed in the browser. A fifth control, off by default, recolours the Stadtteil choropleth by the selected scenario's own per-Stadtteil generation instead of roof potential.
+- `data/generation_scenarios.json` / `data/coverage.json` / `data/battery_case.json`: the three scenario-panel datasets, described under Reproducing the data below.
 
 ## Reproducing the data
 
@@ -45,6 +47,7 @@ python3 scripts/fetch_era5.py
 python3 scripts/find_heatwave_window.py
 python3 scripts/build_generation.py
 python3 scripts/build_coverage.py
+python3 scripts/build_battery.py
 ```
 
 - `fetch_solarkataster.py` downloads the Solarkataster NRW roof-potential shapefile for Duesseldorf (opengeodata.nrw.de, ~98 MB, skips if already present).
@@ -58,8 +61,9 @@ python3 scripts/build_coverage.py
 - `build_postcode_facts.py` joins the same building-level potential to both Stadtteil and PLZ at once, computes each Stadtteil's share of potential per overlapping postcode, attaches that postcode's own facts from `data/plz.json`, and writes `data/postcode_facts.json`.
 - `fetch_era5.py` fetches hourly global tilted irradiance and air temperature for all 50 Stadtteil centroids, full year 2025 plus June 2026, from Open-Meteo's ERA5 archive. About 100 calls, 5-10 minutes; cached to `data/raw/era5_checkpoint.json` with a fetch-retry-checkpoint pattern, so a rerun after a network failure never re-fetches what it already has.
 - `find_heatwave_window.py` reads that cache and finds Duesseldorf's own heatwave window in June 2026 (24-28 June, worst day 26 June at 38.1 degC citywide mean) and a matched normal day from 2025 (25 August, GTI within 0.6% of the heatwave's worst day, so the comparison isolates heat rather than also measuring cloud cover). Both are recorded in `common.py` for the build scripts that use them.
-- `build_generation.py` is the spine of the scenario panel: hourly rated and derated generation on the matched normal day and across the full heatwave window, at every build-out level (11.6%, 30%, 50%, 100%), both citywide and per Stadtteil. Derate uses the NOCT cell temperature model and the -0.35%/degC coefficient applied to cell temperature. Rated generation scales real ERA5 irradiance so the full 2025 year reproduces each Stadtteil's cadastre annual yield exactly at 100% build-out, so this never becomes a second, disagreeing generation figure. Writes `data/generation_scenarios.json` (8 precomputed scenario combinations, 44 KB). Not wired into the page yet.
-- `build_coverage.py` sets annual generation at each build-out level against Duesseldorf's own annual electricity consumption (3,049 GWh, 2022, Energie- und Treibhausgasbilanz). 100% build-out uses the Solarkataster cadastre's own annual total; other levels scale it uniformly, same simplification as `build_generation.py`. Writes `data/coverage.json`. Not wired into the page yet.
-- `common.py` holds the constants and the exclusion rule shared by the roof-potential build scripts, so the rule cannot drift between them, plus the heatwave derate model constants and the found heatwave window and matched normal day.
+- `build_generation.py` is the spine of the scenario panel: hourly rated and derated generation on the matched normal day and across the full heatwave window, at every build-out level (11.6%, 30%, 50%, 100%), both citywide and per Stadtteil. Derate uses the NOCT cell temperature model and the -0.35%/degC coefficient applied to cell temperature. Rated generation scales real ERA5 irradiance so the full 2025 year reproduces each Stadtteil's cadastre annual yield exactly at 100% build-out, so this never becomes a second, disagreeing generation figure. Writes `data/generation_scenarios.json` (8 precomputed scenario combinations, 44 KB).
+- `build_coverage.py` sets annual generation at each build-out level against Duesseldorf's own annual electricity consumption (3,049 GWh, 2022, Energie- und Treibhausgasbilanz). 100% build-out uses the Solarkataster cadastre's own annual total; other levels scale it uniformly, same simplification as `build_generation.py`. Writes `data/coverage.json`.
+- `build_battery.py` is the battery case: how much of each day's midday generation a 1.5 kWh/kWp battery could shift into the evening, no demand curve used or invented. Midday and evening are fixed hour windows (`common.py`), a stated modelling convention, not a sourced figure. Writes `data/battery_case.json`.
+- `common.py` holds the constants and the exclusion rule shared by the roof-potential build scripts, so the rule cannot drift between them, plus the heatwave derate model constants, the found heatwave window and matched normal day, and the battery-case hour windows.
 
 Downloaded source files land in `data/raw/`, gitignored, not committed.

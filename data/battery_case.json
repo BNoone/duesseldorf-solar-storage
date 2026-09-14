@@ -1,0 +1,98 @@
+{
+  "midday_hours": [
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "evening_hours": [
+    18,
+    19,
+    20,
+    21
+  ],
+  "battery_kwh_per_kwp": 1.5,
+  "citywide": {
+    "normal_11.6": {
+      "day": "2025-08-25",
+      "midday_kwh": 345790.6,
+      "evening_kwh": 74532.3,
+      "battery_kwh": 242295.1,
+      "shiftable_kwh": 242295.1,
+      "shiftable_pct_of_midday": 70.1,
+      "evening_with_battery_kwh": 316827.4,
+      "evening_multiple": 4.25
+    },
+    "normal_30.0": {
+      "day": "2025-08-25",
+      "midday_kwh": 894286.0,
+      "evening_kwh": 192756.0,
+      "battery_kwh": 626625.3,
+      "shiftable_kwh": 626625.3,
+      "shiftable_pct_of_midday": 70.1,
+      "evening_with_battery_kwh": 819381.3,
+      "evening_multiple": 4.25
+    },
+    "normal_50.0": {
+      "day": "2025-08-25",
+      "midday_kwh": 1490476.6,
+      "evening_kwh": 321259.9,
+      "battery_kwh": 1044375.5,
+      "shiftable_kwh": 1044375.5,
+      "shiftable_pct_of_midday": 70.1,
+      "evening_with_battery_kwh": 1365635.5,
+      "evening_multiple": 4.25
+    },
+    "normal_100.0": {
+      "day": "2025-08-25",
+      "midday_kwh": 2980953.2,
+      "evening_kwh": 642519.8,
+      "battery_kwh": 2088751.1,
+      "shiftable_kwh": 2088751.1,
+      "shiftable_pct_of_midday": 70.1,
+      "evening_with_battery_kwh": 2731270.9,
+      "evening_multiple": 4.25
+    },
+    "heatwave_11.6": {
+      "day": "2026-06-26",
+      "midday_kwh": 346543.7,
+      "evening_kwh": 48105.0,
+      "battery_kwh": 242295.1,
+      "shiftable_kwh": 242295.1,
+      "shiftable_pct_of_midday": 69.9,
+      "evening_with_battery_kwh": 290400.2,
+      "evening_multiple": 6.04
+    },
+    "heatwave_30.0": {
+      "day": "2026-06-26",
+      "midday_kwh": 896233.7,
+      "evening_kwh": 124409.6,
+      "battery_kwh": 626625.3,
+      "shiftable_kwh": 626625.3,
+      "shiftable_pct_of_midday": 69.9,
+      "evening_with_battery_kwh": 751034.9,
+      "evening_multiple": 6.04
+    },
+    "heatwave_50.0": {
+      "day": "2026-06-26",
+      "midday_kwh": 1493722.9,
+      "evening_kwh": 207349.3,
+      "battery_kwh": 1044375.5,
+      "shiftable_kwh": 1044375.5,
+      "shiftable_pct_of_midday": 69.9,
+      "evening_with_battery_kwh": 1251724.8,
+      "evening_multiple": 6.04
+    },
+    "heatwave_100.0": {
+      "day": "2026-06-26",
+      "midday_kwh": 2987445.8,
+      "evening_kwh": 414698.6,
+      "battery_kwh": 2088751.1,
+      "shiftable_kwh": 2088751.1,
+      "shiftable_pct_of_midday": 69.9,
+      "evening_with_battery_kwh": 2503449.6,
+      "evening_multiple": 6.04
+    }
+  }
+}
