@@ -1,9 +1,9 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v3.0
+# Duesseldorf Solar + Storage Potential Map · Scope v3.1
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-15 (v3.0, see Changelog)
+**Amended:** 2026-09-15 (v3.1, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
@@ -11,7 +11,15 @@ Read this file at the start of every session, before anything else. If the repo 
 
 ## 0. Changelog
 
-**v3.0 (2026-09-15):** a UX pass, six commits, presentation only. No new data, no new analysis, no scope change; every number on the page already existed, this changed how it reads.
+**v3.1 (2026-09-15):** scope change, not presentation only. The midday-to-evening storage-shifting story is cut.
+
+Before shipping any of it: verified the "3,049 GWh" 2022 electricity consumption figure against the actual source PDF (`pdftotext` on the real document, not recalled from memory), page 14, table "Energieverbrauch in GWh", row "Strom", GHDI 1,599 + KE 107 + HH 1,171 + V 172 = 3,049, the report's own printed total, not scaled, not estimated, not a national or NRW figure. The footer never cited this source; it does now (section 4, this changelog entry's own commit 5).
+
+**The subject of this project changes.** It was "how much rooftop solar could this city have, and how much battery storage would that call for": a potential-plus-storage-sizing pitch. It is now "how much rooftop solar could this city have, and what does heat and cooling demand do to that": a potential-plus-heat pitch. Storage was never wrong, exactly, but the battery-dispatch table (capacity, midday generation, evening generation, shiftable kWh, evening-with-battery, the 70.1% and 4.25x findings from the earlier scenario-panel batch) asked a visitor to absorb a second, separate quantitative argument (how much of a day's generation a 1.5 kWh/kWp battery could shift) on top of the heat argument the page already makes, and diluted both. Storage survives as one line in the panel, the capacity these rooftops would justify at 1.5 kWh/kWp (HTW Berlin), and as the existing large-unit dots on the map. The line and the dots are a fact stated, not an argument made.
+
+**What was cut, specifically:** `scripts/build_battery.py` and `data/battery_case.json` are no longer read by the page (script kept in the repo; a future scope could resurrect it, this is a presentation decision about what the page argues, not a claim the underlying computation was wrong). The battery-case table, its stats-note sentence, and the "midday hours"/"evening hours" framing are removed from `app.js`/`index.html`/`style.css`. Section 4's "Battery case: midday surplus, evening gap" subsection below is replaced accordingly.
+
+Also cut: the rated-vs-derated line chart (Chart.js). Diagnosis, so this is not repeated: the chart was correct, 24 points, a real zero-based axis, not the reported "growing/exponential" shape. The actual problem was scale: a 5.3% heatwave-vs-normal difference is invisible on a 0-to-~93,000-kWh axis, rendering as two hairline-apart curves. Replaced with an hourly loss strip (commit 1 below) that plots the derate percentage directly instead of two near-identical absolute curves, which is the shape that actually needed to be legible.
 
 The header is four labelled figures in the city-level unit tier (1.4 GW possible, 1.1 TWh a year, 0.16 GW built, 11.6% used) instead of a run-on sentence mixing kWp and MWh, under a subtitle that states the page's actual question. An (i) button opens a modal holding what used to clutter the header: what the page models, the suitability rule, data sources, and the cooling-demand France analogue with its caveat. Units are now tiered and enforced: city level GW/TWh, district level MW/GWh, building level kW/kWh, never mixed on one screen.
 
@@ -55,11 +63,11 @@ Two options were considered. Apportion each PLZ's registered PV across its overl
 
 ## 1. What this is
 
-**One web page. One map. A few toggles.** A visitor opens it, sees Duesseldorf, and can answer one question: *how much rooftop solar could this city have, and how much battery storage would that call for?*
+**One web page. One map. A few toggles.** A visitor opens it, sees Duesseldorf, and can answer one question: *how much rooftop solar could this city have, and what does heat and cooling demand do to that potential?* (Changed in v3.1; was "...and how much battery storage would that call for", see changelog. Storage is now a fact stated, one line and dots on the map, not the second argument the page makes.)
 
 It is a portfolio piece for hiring managers. It has to load fast on a laptop, look competent, and every number on it has to trace to a named public source. It is not a research paper, not a planning tool, and not a simulation.
 
-**What the site actually models:** a scenario in which every suitable rooftop in Duesseldorf carries solar feeding storage, then the heatwave PV derate and the AC demand surge are applied on top of that built-out scenario. This scenario runs on the Solarkataster and ERA5 alone and needs no registry data at all. Existing installations, from MaStR, are shown alongside as context, to compute a realization rate, never as an input to the potential model itself.
+**What the site actually models:** a scenario in which every suitable rooftop in Duesseldorf carries solar, then the heatwave PV derate and the cooling demand surge are applied on top of that built-out scenario. This scenario runs on the Solarkataster and ERA5 alone and needs no registry data at all. Existing installations, from MaStR, are shown alongside as context, to compute a realization rate, never as an input to the potential model itself.
 
 ## 2. The page
 
@@ -292,25 +300,11 @@ Steps, not a free slider. Shows what the city's generation and battery potential
 
 **The most important sentence on the site:** Duesseldorf's rooftops could generate 1,116 GWh a year, the city uses 3,049 GWh (2022), so at full build-out rooftop solar alone would cover 37% of it.
 
-### Battery case: midday surplus, evening gap
+### Storage: one line, not an argument
 
-Generation peaks around midday and is close to zero by evening; consumption does not follow that shape. No demand curve is used here either, this is a generation-side accounting only. Storage sized at 1.5 kWh per kWp (the HTW Berlin upper bound, section 3) is shown against both the matched normal day and the heatwave day: how much of the day's midday generation a battery that size could shift into the evening.
+Cut in v3.1 (see changelog): the midday-surplus-to-evening-gap battery-dispatch table (battery capacity, midday generation, evening generation, shiftable kWh, evening-with-battery, the 70.1%-at-every-build-out-level and 4.25x/6.04x findings). None of it was wrong, `scripts/build_battery.py` and `data/battery_case.json` still exist and still compute it correctly, it is simply no longer part of what this page argues, see section 1.
 
-**Hour windows** (`scripts/build_battery.py`, `common.py`), a stated modelling convention, not a sourced figure: midday is 11:00-15:59, each day's generation plateau; evening is 18:00-21:59, the same window the AC-surge toggle shades, chosen to line up with the IEA France-analogue evening peak already cited above.
-
-**Computed, citywide, at today's 12% build-out:**
-
-| | Normal day (25 Aug 2025) | Heatwave worst day (26 Jun 2026) |
-|---|---|---|
-| Midday generation | 345,791 kWh | 346,544 kWh |
-| Evening generation | 74,532 kWh | 48,105 kWh |
-| Battery capacity (1.5 kWh/kWp) | 242,295 kWh | 242,295 kWh |
-| Shiftable to evening | 242,295 kWh (70% of midday) | 242,295 kWh (70% of midday) |
-| Evening with battery | 316,827 kWh (4.25x) | 290,400 kWh (6.04x) |
-
-**A robust finding, not just a today's-build-out number:** the shiftable share of midday generation comes out to 70.1% at every build-out level, 12%, 30%, 50%, and 100% alike. Battery capacity and midday generation both scale with build-out in exactly the same proportion (both track installed kWp linearly), so their ratio is a fixed property of the 1.5 kWh/kWp sizing choice itself, not of how much of the city is built out. No round-trip efficiency loss is modelled; this is a capacity limit only, a simplification stated on the page.
-
-The chart accompanying this makes the shape point visually: hourly output across the selected day, rated against derated, with the evening hours shaded, so the reason storage matters is visible, not just stated.
+What replaces it: **one line**, the storage capacity these rooftops would justify at the selected build-out level, at 1.5 kWh per kWp (HTW Berlin upper bound, section 3), cited plainly. No ratios, no hour windows, no dispatch story. The large-unit storage dots stay on the map (section 3), now with the same hover behaviour as districts, one interaction pattern for the whole page.
 
 ### Architecture note specific to this panel
 
