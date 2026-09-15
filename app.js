@@ -4,6 +4,26 @@ const DEFAULT_ZOOM = 12;
 // ColorBrewer "Oranges", 5-class sequential single-hue scale.
 const CHOROPLETH_COLORS = ["#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"];
 
+// Roof-quality bands on the cadastre's own kwh_kwp (capacity-weighted
+// specific yield), set once from the real citywide distribution and
+// fixed (scripts/compute_roof_quality_bands.py, common.py). Absolute
+// thresholds, not per-district quantiles, so "Good" means the same roof
+// quality in every neighbourhood, not "average for this one".
+const ROOF_QUALITY_FAIR_GOOD_KWH_KWP = 730.0;
+const ROOF_QUALITY_GOOD_EXCELLENT_KWH_KWP = 830.0;
+
+function roofQualityBand(kwhKwp) {
+  if (kwhKwp >= ROOF_QUALITY_GOOD_EXCELLENT_KWH_KWP) return "Excellent";
+  if (kwhKwp >= ROOF_QUALITY_FAIR_GOOD_KWH_KWP) return "Good";
+  return "Fair";
+}
+
+const ROOF_QUALITY_COLORS = {
+  Fair: { fillColor: "#fdd0a2", color: "#c97f2e" },
+  Good: { fillColor: "#fd8d3c", color: "#a1551f" },
+  Excellent: { fillColor: "#a63603", color: "#5c1e02" },
+};
+
 const map = L.map("map").setView(DUESSELDORF_CENTER, DEFAULT_ZOOM);
 
 let stadtteilLayer = null;
@@ -23,6 +43,55 @@ function slugify(name) {
   out = out.replace(/-+/g, "-").replace(/^-|-$/g, "");
   return out;
 }
+
+// --- Info modal: what the page models, the suitability rule, sources,
+// and the cooling-demand caveat, all moved out of the main page into one
+// place a visitor opens on purpose. ---------------------------------------
+
+function openInfoModal() {
+  document.getElementById("info-modal").hidden = false;
+}
+
+function closeInfoModal() {
+  document.getElementById("info-modal").hidden = true;
+}
+
+document.getElementById("info-button").addEventListener("click", openInfoModal);
+document.getElementById("info-close").addEventListener("click", closeInfoModal);
+document.getElementById("info-backdrop").addEventListener("click", closeInfoModal);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !document.getElementById("info-modal").hidden) closeInfoModal();
+});
+
+// --- Side panel: open by default, collapsible without hiding content
+// behind a button someone has to discover first. -------------------------
+
+let sidePanelCollapsed = false;
+
+function setSidePanelCollapsed(collapsed) {
+  sidePanelCollapsed = collapsed;
+  document.getElementById("side-panel").classList.toggle("collapsed", collapsed);
+  document.getElementById("panel-toggle").textContent = collapsed ? "Scenarios" : "Hide";
+  // The map's flex-basis changes as the panel collapses/expands; Leaflet
+  // needs to remeasure after the CSS transition settles, not mid-flight.
+  setTimeout(() => map.invalidateSize(), 200);
+}
+
+document.getElementById("panel-toggle").addEventListener("click", () => {
+  setSidePanelCollapsed(!sidePanelCollapsed);
+});
+
+// --- Panel's top line: the direct answer to the header's own subtitle,
+// precomputed (scripts/build_headline.py) from two figures already
+// verified elsewhere on the page, never calculated here. -----------------
+
+fetch("data/headline.json")
+  .then((res) => res.json())
+  .then((data) => {
+    document.getElementById("answer-full-pct").textContent = `${data.full_buildout_coverage_pct}%`;
+    document.getElementById("answer-heat-pct").textContent = `${data.heatwave_coverage_pct}%`;
+  })
+  .catch((err) => console.error(err));
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
@@ -57,6 +126,21 @@ function colorForValue(value, breaks) {
 
 function formatNumber(n) {
   return Math.round(n).toLocaleString("en-US");
+}
+
+// Unit tiers (SCOPE.md-adjacent UX rule, not a data change): city level
+// shows capacity in GW and annual energy in TWh, district level MW and
+// GWh, building level kW and kWh. Never mix tiers on one screen, never
+// more than four digits before the decimal. City-level figures use 2
+// significant figures (matches "1.4 GW", "0.16 GW" on the page); district
+// and building figures use fixed decimals, since they never approach a
+// range where significant-figure rounding would matter.
+function formatGW(kwp) {
+  return `${Number(kwp / 1e6).toPrecision(2)} GW`;
+}
+
+function formatTWh(mwh) {
+  return `${Number(mwh / 1e6).toPrecision(2)} TWh`;
 }
 
 // Planar shoelace formula on raw lon/lat. Not a true geodesic area, but
@@ -105,102 +189,82 @@ function polygonAreaAndCentroid(geometry) {
   return { totalArea, centroid: best.centroid };
 }
 
-let legendControl = null;
-
-// Re-callable so the scenario panel's "colour the map" toggle can swap the
-// legend between roof potential and scenario generation without leaving a
-// stale control behind.
-function updateLegend(title, breaks, minValue, maxValue) {
-  if (legendControl) map.removeControl(legendControl);
-  legendControl = L.control({ position: "bottomright" });
-  legendControl.onAdd = function () {
-    const div = L.DomUtil.create("div", "legend");
-    const edges = [minValue, ...breaks, maxValue];
-    let html = `<div class="legend-title">${title}</div>`;
-    for (let i = 0; i < CHOROPLETH_COLORS.length; i++) {
-      const lo = formatNumber(edges[i]);
-      const hi = formatNumber(edges[i + 1]);
-      html += `
-        <div class="legend-row">
-          <span class="swatch" style="background:${CHOROPLETH_COLORS[i]}"></span>
-          <span>${lo} &ndash; ${hi}</span>
-        </div>`;
-    }
-    div.innerHTML = html;
-    return div;
-  };
-  legendControl.addTo(map);
-}
-
-// Which per-Stadtteil value currently drives the choropleth: static roof
-// potential (the default, always available) or the selected scenario's
-// generation (only once the scenario panel's own data has loaded and its
-// "colour the map" toggle is on). Kept as one function so hover/reset and
-// the initial paint never disagree about the current styling.
-let colorMode = "potential";
+// No legend: the choropleth is always roof potential, and hover now
+// explains it directly (name, possible capacity, qualifying buildings)
+// instead of asking a visitor to cross-reference a corner legend.
 let potentialBreaksInfo = null;
-let scenarioBreaksInfo = null;
 
 function activeStyleFn(feature) {
-  if (colorMode === "scenario" && scenarioBreaksInfo) {
-    const st = generationData.by_stadtteil[feature.properties.name];
-    const val = st ? st[scenarioKey()].total_derated_kwh : 0;
-    return {
-      fillColor: colorForValue(val, scenarioBreaksInfo.breaks),
-      fillOpacity: 0.8,
-      color: "#ffffff",
-      weight: 1,
-    };
-  }
   return {
     fillColor: colorForValue(feature.properties.total_kwp, potentialBreaksInfo.breaks),
     fillOpacity: 0.8,
     color: "#ffffff",
-    weight: 1,
+    weight: 1.5,
   };
 }
 
-function updateHeaderTotals(features, properties) {
-  const totalBuildings = features.reduce((sum, f) => sum + f.properties.qualifying_buildings, 0);
-  const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
-  const totalMwh = features.reduce((sum, f) => sum + f.properties.total_mwh, 0);
-
-  let html =
-    `<strong>${formatNumber(totalBuildings)}</strong> qualifying buildings &middot; ` +
-    `<strong>${formatNumber(totalKwp)} kWp</strong> roof potential &middot; ` +
-    `<strong>${formatNumber(totalMwh)} MWh</strong>/year`;
-
-  if (properties.registered_pv_kwp) {
-    const realizationPct = (properties.registered_pv_kwp / totalKwp) * 100;
-    html +=
-      ` &middot; <strong>${formatNumber(properties.registered_pv_kwp)} kWp</strong> registered, ` +
-      `<strong>${realizationPct.toFixed(1)}%</strong> of potential built`;
-  }
-
-  document.getElementById("header-totals").innerHTML = html;
-
-  if (properties.qualifying_rule_sentence) {
-    document.getElementById("header-rule").textContent = properties.qualifying_rule_sentence;
-  }
+// District hover tooltip: name, possible capacity (MW, the district unit
+// tier), and qualifying buildings. Built/installed capacity is
+// deliberately left out here, MaStR only reliably geocodes to postcode,
+// not Stadtteil (SCOPE.md section 3), and apportioning it by roof-potential
+// share was tried once already and rejected as methodologically unsound,
+// worst in exactly the districts people click first. Postcode-level
+// installed capacity is still exact, it lives in the drill-down panel.
+function districtTooltipHtml(props) {
+  const mw = props.total_kwp / 1000;
+  return (
+    `<div class="district-tooltip-name">${props.name}</div>` +
+    `<div class="district-tooltip-row">${mw.toFixed(1)} MW possible &middot; ` +
+    `${formatNumber(props.qualifying_buildings)} qualifying buildings</div>`
+  );
 }
 
+// Four labelled figures, not a run-on sentence, each in the city-level
+// unit tier (GW capacity, TWh annual energy). The suitability-rule
+// sentence that used to sit under these moved into the (i) panel, it
+// never belonged in a stats strip.
+function updateCityStrip(features, properties) {
+  const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
+  const totalMwh = features.reduce((sum, f) => sum + f.properties.total_mwh, 0);
+  const registeredKwp = properties.registered_pv_kwp || 0;
+  const realizationPct = registeredKwp ? (registeredKwp / totalKwp) * 100 : 0;
+
+  document.getElementById("stat-potential").textContent = formatGW(totalKwp);
+  document.getElementById("stat-annual").textContent = formatTWh(totalMwh);
+  document.getElementById("stat-built").textContent = formatGW(registeredKwp);
+  document.getElementById("stat-realization").textContent = `${realizationPct.toFixed(1)}%`;
+}
+
+// Plain language: no "specific yield", no "facets" on screen. Roof
+// quality replaces both, one word instead of a raw kWh/kWp figure a
+// visitor would have no reference point for. The (i) toggle answers
+// "what counts as a qualifying building" without leaving the popup.
 function buildingPopupHtml(props) {
+  const band = roofQualityBand(props.kwh_kwp);
   return `
     <div class="building-popup">
-      <h3>${props.highlighted ? "Top 20 building" : "Building"}</h3>
+      <h3>Building <button type="button" class="popup-info-btn" onclick="toggleBuildingInfo(this)" aria-label="What counts as a qualifying building">i</button></h3>
+      <div class="popup-info-note" hidden>A building qualifies once its roof faces sum to at least 10 kW, excluding north-facing pitched faces. Flat roofs always qualify, since panels on them are angled south.</div>
       <table>
-        <tr><td class="label">Roof potential</td><td class="value">${formatNumber(props.total_kwp)} kWp</td></tr>
-        <tr><td class="label">Annual yield</td><td class="value">${formatNumber(props.total_kwh / 1000)} MWh</td></tr>
-        <tr><td class="label">Specific yield</td><td class="value">${formatNumber(props.kwh_kwp)} kWh/kWp</td></tr>
-        <tr><td class="label">Facets</td><td class="value">${props.facet_count}</td></tr>
+        <tr><td class="label">Space for solar</td><td class="value">${formatNumber(props.total_kwp)} kW</td></tr>
+        <tr><td class="label">Would generate</td><td class="value">${formatNumber(props.total_kwh)} kWh a year</td></tr>
+        <tr><td class="label">Roof quality</td><td class="value">${band}</td></tr>
       </table>
     </div>`;
 }
 
+function toggleBuildingInfo(btn) {
+  const note = btn.closest(".building-popup").querySelector(".popup-info-note");
+  note.hidden = !note.hidden;
+}
+
+// The old top-20-by-yield gold highlight is gone (never explained on the
+// page); buildings are now coloured by roof quality instead, the
+// cadastre's own kwh_kwp bucketed into three fixed, citywide bands.
 function buildingStyle(feature) {
-  return feature.properties.highlighted
-    ? { fillColor: "#ffd700", fillOpacity: 0.9, color: "#8a6d00", weight: 1 }
-    : { fillColor: "#fd8d3c", fillOpacity: 0.7, color: "#a1551f", weight: 0.5 };
+  const band = roofQualityBand(feature.properties.kwh_kwp);
+  const colors = ROOF_QUALITY_COLORS[band];
+  return { fillColor: colors.fillColor, fillOpacity: 0.75, color: colors.color, weight: 0.5 };
 }
 
 let currentDrilldownName = null;
@@ -306,8 +370,11 @@ fetch("data/stadtteile.json")
     }
 
     function onEachFeature(feature, layer) {
-      // Hover tooltip on every Stadtteil, so no shape is ever unnamed.
-      layer.bindTooltip(feature.properties.name, {
+      // Hover tooltip on every Stadtteil: name, possible capacity, and
+      // qualifying buildings, replacing the old legend, since this shows
+      // potential in context instead of asking a visitor to read a corner
+      // key and do the lookup themselves.
+      layer.bindTooltip(districtTooltipHtml(feature.properties), {
         sticky: true,
         className: "stadtteil-tooltip",
       });
@@ -349,8 +416,7 @@ fetch("data/stadtteile.json")
     });
     stadtteilLabels.addTo(map);
 
-    updateLegend("Roof potential (kWp)", potentialBreaksInfo.breaks, potentialBreaksInfo.min, potentialBreaksInfo.max);
-    updateHeaderTotals(data.features, data.properties);
+    updateCityStrip(data.features, data.properties);
     updateFooter(data.properties);
 
     // Fix: fitBounds/invalidateSize must run after the header and footer
@@ -367,7 +433,7 @@ fetch("data/stadtteile.json")
     });
   })
   .catch((err) => {
-    document.getElementById("header-totals").textContent = "Could not load stadtteile.json.";
+    document.getElementById("stat-potential").textContent = "?";
     console.error(err);
   });
 
@@ -565,8 +631,11 @@ function scenarioKey() {
   return (scenarioHeatwave ? "heatwave" : "normal") + "_" + buildoutKeySuffix();
 }
 
-function formatGwh(n) {
-  return n.toLocaleString("en-US", { maximumFractionDigits: 1 }) + " GWh";
+// City-level annual figures, so TWh (the same tier as the header strip),
+// not GWh. coverage.json reports these in GWh, converted here for
+// display only.
+function formatTWhFromGwh(gwh) {
+  return `${Number(gwh / 1000).toPrecision(2)} TWh`;
 }
 
 function formatDate(iso) {
@@ -575,25 +644,28 @@ function formatDate(iso) {
   return `${d} ${months[m - 1]} ${y}`;
 }
 
-function computeScenarioBreaks(key) {
-  const values = Object.values(generationData.by_stadtteil).map((st) => st[key].total_derated_kwh);
-  return {
-    breaks: quantileBreaks(values, CHOROPLETH_COLORS.length),
-    min: Math.min(...values),
-    max: Math.max(...values),
-  };
-}
+// The payoff of the panel: normal day vs heatwave day, always both shown
+// together (not swapped by the heatwave toggle, which instead picks
+// which of the two the chart below plots hour by hour). City-level
+// figures, so MWh, the same tier the rest of this comparison already
+// uses (see build_generation.py's own headline print).
+function renderBigNumbers() {
+  const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
+  const heatC = generationData.citywide["heatwave_" + buildoutKeySuffix()];
+  const normalMwh = normalC.total_derated_kwh / 1000;
+  const heatMwh = heatC.total_derated_kwh / 1000;
+  const diffPct = (1 - heatMwh / normalMwh) * 100;
 
-function recolorMap() {
-  if (!stadtteilLayer || !generationData) return;
-  if (colorMode === "scenario") {
-    scenarioBreaksInfo = computeScenarioBreaks(scenarioKey());
-    const dayLabel = scenarioHeatwave ? "Heatwave worst day" : "Normal day";
-    updateLegend(`${dayLabel} generation (kWh)`, scenarioBreaksInfo.breaks, scenarioBreaksInfo.min, scenarioBreaksInfo.max);
-  } else {
-    updateLegend("Roof potential (kWp)", potentialBreaksInfo.breaks, potentialBreaksInfo.min, potentialBreaksInfo.max);
-  }
-  stadtteilLayer.eachLayer((l) => l.setStyle(activeStyleFn(l.feature)));
+  document.getElementById("big-numbers").innerHTML = `
+    <div class="big-number">
+      <div class="big-number-label">Normal day</div>
+      <div class="big-number-value">${formatNumber(normalMwh)} MWh</div>
+    </div>
+    <div class="big-number">
+      <div class="big-number-label">Heatwave day</div>
+      <div class="big-number-value">${formatNumber(heatMwh)} MWh
+        <span class="big-number-delta">(${diffPct.toFixed(1)}% less)</span></div>
+    </div>`;
 }
 
 function renderScenarioHeadline() {
@@ -603,26 +675,18 @@ function renderScenarioHeadline() {
 
   let html = "";
   if (scenarioHeatwave) {
-    const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
-    const diffKwh = normalC.total_derated_kwh - c.total_derated_kwh;
-    const diffPct = (diffKwh / normalC.total_derated_kwh) * 100;
     const windowLostKwh = c.window_total_rated_kwh - c.window_total_derated_kwh;
-    html += `<strong>${formatNumber(c.total_derated_kwh)} kWh</strong> generated on the heatwave's worst day ` +
-      `(${formatDate(c.day)}), against <strong>${formatNumber(normalC.total_derated_kwh)} kWh</strong> on the ` +
-      `matched normal day (${formatDate(normalC.day)}): <strong>${formatNumber(diffKwh)} kWh less, ${diffPct.toFixed(1)}%</strong>, ` +
-      `at ${cov.buildout_label} build-out.`;
-    html += `<span class="headline-note">Worst-hour derate ${c.worst_hour_derate_pct}%. Across the full ` +
-      `24&ndash;28 June window: ${formatNumber(c.window_total_derated_kwh)} kWh generated, ` +
-      `${formatNumber(windowLostKwh)} kWh lost to derate, average daylight derate ${c.avg_daylight_derate_pct}%.</span>`;
+    html += `Worst-hour derate <strong>${c.worst_hour_derate_pct}%</strong>. Across the full 24&ndash;28 June ` +
+      `window: ${formatNumber(c.window_total_derated_kwh)} kWh generated, ${formatNumber(windowLostKwh)} kWh ` +
+      `lost to derate, average daylight derate ${c.avg_daylight_derate_pct}%.`;
   } else {
     const lostPct = (1 - c.total_derated_kwh / c.total_rated_kwh) * 100;
-    html += `<strong>${formatNumber(c.total_derated_kwh)} kWh</strong> generated on a matched normal day ` +
-      `(${formatDate(c.day)}) at ${cov.buildout_label} build-out (rated ${formatNumber(c.total_rated_kwh)} kWh, ` +
-      `${lostPct.toFixed(1)}% lost to ordinary heat derate, not a heatwave effect).`;
+    html += `Rated ${formatNumber(c.total_rated_kwh)} kWh, ${lostPct.toFixed(1)}% lost to ordinary heat derate, ` +
+      `not a heatwave effect.`;
   }
   html += `<span class="headline-note">At ${cov.buildout_label} build-out, Duesseldorf's rooftops generate ` +
-    `${formatGwh(cov.annual_gwh)} a year, ${cov.coverage_pct}% of the city's own ${formatGwh(coverageData.city_consumption_gwh)} ` +
-    `electricity use (${coverageData.city_consumption_year}).</span>`;
+    `${formatTWhFromGwh(cov.annual_gwh)} a year, ${cov.coverage_pct}% of the city's own ` +
+    `${formatTWhFromGwh(coverageData.city_consumption_gwh)} electricity use (${coverageData.city_consumption_year}).</span>`;
 
   document.getElementById("scenario-headline").innerHTML = html;
 }
@@ -723,6 +787,11 @@ function renderScenarioChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      // The chart only ever plots one day, 24 points, never the full
+      // year or all 50 districts, so there is no data-volume cost here.
+      // A snappier transition (default is 1000ms) is what actually makes
+      // toggling scenarios feel instant rather than laggy.
+      animation: { duration: 200 },
       interaction: { mode: "index", intersect: false },
       scales: {
         x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
@@ -746,11 +815,11 @@ function renderChartCaption() {
 
 function updateScenarioView() {
   if (!generationData || !coverageData || !batteryData) return;
+  renderBigNumbers();
   renderScenarioHeadline();
   renderScenarioChart();
   renderScenarioStats();
   renderChartCaption();
-  if (colorMode === "scenario") recolorMap();
 }
 
 document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
@@ -769,11 +838,6 @@ document.querySelectorAll(".buildout-step").forEach((btn) => {
     document.querySelectorAll(".buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
     updateScenarioView();
   });
-});
-
-document.getElementById("toggle-map-color").addEventListener("change", (e) => {
-  colorMode = e.target.checked ? "scenario" : "potential";
-  recolorMap();
 });
 
 Promise.all([

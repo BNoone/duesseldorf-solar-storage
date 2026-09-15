@@ -1,9 +1,9 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v2.5
+# Duesseldorf Solar + Storage Potential Map · Scope v3.0
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-14 (v2.5, see Changelog)
+**Amended:** 2026-09-15 (v3.0, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
@@ -11,7 +11,15 @@ Read this file at the start of every session, before anything else. If the repo 
 
 ## 0. Changelog
 
-**v2.5 (2026-09-14):** commit 5, the AC surge toggle, closes out the scenario panel batch.
+**v3.0 (2026-09-15):** a UX pass, six commits, presentation only. No new data, no new analysis, no scope change; every number on the page already existed, this changed how it reads.
+
+The header is four labelled figures in the city-level unit tier (1.4 GW possible, 1.1 TWh a year, 0.16 GW built, 11.6% used) instead of a run-on sentence mixing kWp and MWh, under a subtitle that states the page's actual question. An (i) button opens a modal holding what used to clutter the header: what the page models, the suitability rule, data sources, and the cooling-demand France analogue with its caveat. Units are now tiered and enforced: city level GW/TWh, district level MW/GWh, building level kW/kWh, never mixed on one screen.
+
+The screen splits map (about 70%) and the scenario panel (about 30%), side by side, panel open by default, a "Hide" toggle collapsing it to a narrow tab rather than hiding its content behind a control someone has to find. The panel's very first line now answers the subtitle directly (full build-out coverage, and what it drops to on the hottest days, both precomputed from figures already verified elsewhere on the page, see section 4), before any other number.
+
+The map's legend is gone; hovering a district now shows its name, possible capacity, and qualifying buildings directly. Built/installed capacity stays out of that hover on purpose, see section 3, that apportionment was already rejected once (v2.3). The "colour the map by this scenario's generation" control and its own legend are gone too: none of the panel's toggles change the map any more, it stays roof potential, full stop. The top-20-by-yield gold building highlight is gone, it was never explained on the page; buildings are now coloured by roof quality instead (Fair/Good/Excellent, fixed citywide thresholds on the cadastre's own kwh_kwp, section 4). The building popup drops "specific yield" and "facets" for plain language, with an (i) explaining what counts as a qualifying building.
+
+The scenario panel now leads with two big numbers, normal day vs heatwave day in MWh, always both shown, above a chart that was already a single day and 24 points (the reported lag traced to Chart.js's default 1000ms transition, not data volume, now 200ms). Exactly three controls remain, all in the panel, none on the map: build-out (now labelled "Today" for the current rate, plus 30/50/100%), heatwave on/off, and a plainly-labelled cooling-demand-surge toggle (its France-analogue caveat lives only in the (i) panel now).
 
 The evening demand-surge toggle is wired in: checking it darkens and labels the chart's existing evening shading with the cited France-analogue figure (+25%, IEA, 28 July 2025) and swaps in a supply/demand asymmetry note. No demand curve is drawn and no generation number changes when it is toggled, since it is a demand-side citation, not a supply figure; `data/generation_scenarios.json` stays exactly 8 combinations, not 16 (see section 4's architecture note and section 9, both corrected from the earlier "16 combinations" framing, which would have implied AC surge affects supply). With this, all four required commits plus the optional fifth are merged and live: the scenario panel is complete.
 
@@ -56,30 +64,36 @@ It is a portfolio piece for hiring managers. It has to load fast on a laptop, lo
 ## 2. The page
 
 ```
-+--------------------------------------------------+
-|  Duesseldorf Solar + Storage Potential            |
-+---------------------------+----------------------+
-|                           |  LAYERS              |
-|                           |  [ ] Large storage,  |
-|         THE MAP           |      Duesseldorf     |
-|    (Stadtteil shapes,     |  [ ] Large storage,  |
-|     the only geography;   |      NRW above 1 MW  |
-|     click one to drill    |                      |
-|     into its buildings.   |  SCENARIOS           |
-|     Its panel then shows  |  [ ] Heatwave: PV    |
-|     the postcodes it      |      derate          |
-|     sits in, each with    |  [ ] Heatwave: AC    |
-|     its own exact PV,     |      demand surge    |
-|     realization, and      |  Built out: 12% /    |
-|     storage facts)        |      30% / 50%       |
-|                           |                      |
-|                           |  NUMBERS             |
-|                           |  (update live as     |
-|                           |   toggles change)    |
-+---------------------------+----------------------+
++----------------------------------------------------------------+
+|  Duesseldorf Solar + Storage (i)                                |
+|  If every suitable roof in Duesseldorf had solar, would it      |
+|  power the city? And what happens when it gets hot?             |
+|                                                                   |
+|  1.4 GW      1.1 TWh      0.16 GW      11.6%                    |
+|  possible    per year     built        used                     |
++---------------------------------------+-------------------------+
+|                                        | [Hide]                  |
+|  LAYERS                                |                         |
+|  [ ] Large storage, Duesseldorf        | At full build-out,     |
+|  [ ] Large storage, NRW above 1 MW     | rooftops would cover   |
+|                                        | X% of the city's       |
+|         THE MAP                       | electricity. On the    |
+|    (Stadtteil shapes, roof potential; | hottest days, Y%.      |
+|     hover for name, possible MW,      |                         |
+|     qualifying buildings, no legend;  | Normal day vs heatwave  |
+|     click one to drill into its       | [ ] Heatwave  [ ] Cool |
+|     buildings, coloured by roof       | Build-out: Today/30/   |
+|     quality. Its panel then shows     |    50/100%              |
+|     the postcodes it sits in, each    |                         |
+|     with its own exact PV,            | Normal day: X MWh      |
+|     realization, and storage facts.   | Heatwave day: Y MWh    |
+|     Never changes with the panel's    |   (Z% less)             |
+|     toggles, it stays a map.)         | [ hourly chart ]        |
+|                                        | Battery case, stats     |
++---------------------------------------+-------------------------+
 ```
 
-One map, one geography. Layer checkboxes decide what else is drawn on it. Clicking a Stadtteil opens a panel with that neighbourhood's own numbers and the postcodes inside it. The scenario panel changes the numbers. Nothing navigates away.
+Map about 70%, panel about 30%, open by default; a "Hide" toggle collapses it to a narrow tab rather than hiding its content behind a control someone has to discover first. Clicking a Stadtteil opens a panel with that neighbourhood's own numbers and the postcodes inside it. The scenario panel's toggles change the panel's own numbers and chart, never the map, which stays roof potential regardless of any toggle state. Nothing navigates away.
 
 ## 3. The data model: one geography, postcode facts in the panel
 
@@ -138,13 +152,13 @@ Existing PV, existing BESS, and realization are never carried on the Stadtteil s
 
 ### Level: buildings, on click
 
-Clicking a Stadtteil zooms in and draws **every qualifying building** in it, loaded one Stadtteil at a time, not the whole city at once. The 20 highest-yield buildings in that Stadtteil (by building-level `kwh_kwp`) are highlighted.
+Clicking a Stadtteil zooms in and draws **every qualifying building** in it, loaded one Stadtteil at a time, not the whole city at once, coloured by roof quality (UX pass v3.0): Fair, Good, or Excellent, three fixed citywide bands on building-level `kwh_kwp` (`scripts/compute_roof_quality_bands.py`), absolute thresholds set once from the real distribution, not per-district quantiles, so "Good" means the same roof quality in Stadtmitte as in Wittlaer. An earlier version highlighted the 20 highest-yield buildings per Stadtteil in gold instead; removed, it was never explained on the page and answered a question ("which are the best few roofs here") nobody was asking, roof quality answers the one visitors actually have ("is this roof any good").
 
-**Aggregates (the Stadtteil's roof potential, annual yield, and building count) always count every qualifying building, never only the highlighted 20.** Summing only the highlighted set would understate the neighbourhood's real potential by more than an order of magnitude in any Stadtteil with more than 20 qualifying buildings, which is most of them.
+**Aggregates (the Stadtteil's roof potential, annual yield, and building count) always count every qualifying building**, regardless of its quality band.
 
-The page must say, in one sentence, what "suitable" and "highlighted" mean. A visitor who cannot see the rule cannot trust the map.
+The page must say, in one sentence, what "qualifying" means. A visitor who cannot see the rule cannot trust the map. It lives in two places: the drill-down panel's own one-line rule, and an (i) toggle on every building popup, so the explanation is never more than one click away from the building itself.
 
-**Sentence for the page:** *"A building counts as suitable if its roof facets together could carry at least 10 kWp; the 20 shown in gold are the highest-yield buildings in this neighbourhood, but every qualifying building counts toward the totals."*
+**Sentence for the page:** *"A building qualifies once its roof faces sum to at least 10 kW, excluding north-facing pitched faces. Flat roofs always qualify, since panels on them are angled south."*
 
 ### Postcode facts, inside the Stadtteil panel
 
@@ -249,7 +263,9 @@ Sources: [2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_h
 
 **Across the full 24-28 June window**, not just the worst day: 3,073,892 kWh derated total, average daylight derate 6.56%, 345,203 kWh lost to derate over the five days. The worst single hour anywhere in the window reached 14.18% derate.
 
-### Toggle 2 · Heatwave: AC demand surge
+### Toggle 2 · Cooling demand surge
+
+Labelled "Cooling demand surge" on the page (UX pass v3.0, plain language, was "AC demand surge (France analogue)"); the France analogue and its caveat moved into the (i) panel, so they are stated once, not repeated next to the toggle.
 
 Evening demand rises during heat. There is no Duesseldorf consumption dataset, and none is invented. Instead: **+25% on the evening peak**, sourced to the IEA commentary ["Staying cool without overheating the energy system"](https://www.iea.org/commentaries/staying-cool-without-overheating-the-energy-system) (28 July 2025), which reports France at 25% above off-season demand during the 2025 heatwaves. France is the stated analogue because German residential air conditioning ownership is low, so a German figure of this kind does not really exist to cite.
 
@@ -259,7 +275,9 @@ Labelled on the page as a **France analogue**, never as a Duesseldorf measuremen
 
 **Wired into the page** (`app.js`): a checkbox next to the heatwave toggle. On, it darkens the chart's existing evening shading and draws the cited figure directly on the chart (`+25% evening demand`, `France analogue, IEA`), and the chart caption and the scenario-stats panel's asymmetry note update to match. It touches no generation number and no precomputed JSON; `data/generation_scenarios.json` stays 8 combinations, not 16, see the architecture note below.
 
-### Control 3 · Built out at 12% / 30% / 50% / 100%
+### Control 3 · Built out at Today / 30% / 50% / 100%
+
+Labelled "Today" on the page, not "12%": the exact rate is redundant with the header strip's own 11.6% figure, and "Today" is the thing a visitor actually needs to know before comparing it against the other three steps. A title attribute still gives the precise rate on hover.
 
 Steps, not a free slider. Shows what the city's generation and battery potential look like at each level of rooftop build-out. 12% is today's measured realization rate (11.6%, rounded), recomputed with north-facing pitched facets excluded, see section 3; this replaces v2.1's 10% (9.6% rounded, before the exclusion) and v2's 14% (the per-facet figure), both now superseded. **100% is required, not optional:** the whole thought experiment this project is built around is "every suitable rooftop carries solar," and a built-out control that stops short of that number never actually answers the question the page opens with.
 
@@ -302,7 +320,7 @@ Every combination of heatwave on/off and build-out level is precomputed to stati
 
 **AC surge (commit 5) does not add a ninth data dimension.** It is a demand-side citation, not a generation number, so it changes nothing in `data/generation_scenarios.json`; precomputing 16 combinations for it would just duplicate the same 8 generation figures under two labels, implying AC surge affects supply when it explicitly must not (see Toggle 2 above). Instead the toggle is client-side UI state only: it recolours and labels the chart's existing evening shading and swaps in the asymmetry note, nothing more.
 
-**Wired into the page** (`app.js`): a heatwave on/off toggle and a four-step build-out control, both reading straight from `data/generation_scenarios.json`, `data/coverage.json`, and `data/battery_case.json`, never computing anything client-side. Flipping either updates the headline sentence, the hourly chart (Chart.js from cdnjs, rated vs derated, evening shaded), and the battery-case stats together, since they all key off the same `{normal|heatwave}_{build-out}` pair. A third control, off by default, recolours the Stadtteil choropleth by the selected scenario's own per-Stadtteil generation instead of static roof potential, with its own legend; unchecked, the map is exactly the roof-potential view described in section 3, undisturbed by anything in this panel.
+**Wired into the page** (`app.js`): exactly three controls, heatwave on/off, build-out (Today/30/50/100%), and cooling demand surge, all reading straight from `data/generation_scenarios.json`, `data/coverage.json`, and `data/battery_case.json`, never computing anything client-side. Flipping any of them updates the panel's top-line answer, the two big numbers (normal day vs heatwave day, MWh), the hourly chart (Chart.js from cdnjs, rated vs derated, evening shaded, one day, 24 points), the supporting detail text, and the battery-case stats together, since they all key off the same `{normal|heatwave}_{build-out}` pair. None of the three change the map: the choropleth stays roof potential regardless of any toggle state (the UX pass removed an earlier "colour the map by this scenario's generation" control, see v3.0 changelog and section 3's district-hover note), the map is exactly the roof-potential view described in section 3, undisturbed by anything in this panel.
 
 ## 5. Two weather years, on purpose
 
@@ -367,7 +385,7 @@ Any request implying one of these is a stop-and-ask:
 - **Repo name:** `duesseldorf-solar-storage`
 - **Postcode field in MaStR:** yes. `Postleitzahl` and `Ort` are both 100% non-null for Duesseldorf, across 6,660 storage units and 11,804 PV units. Coordinates are the sparse field (0.4% for storage, 3.1% for PV), and sparse in a size-biased way, not randomly. This is the finding that made PLZ the only geography the registry data can honestly support at all.
 - **Roof suitability rule:** building level (`geb_id` sum), not facet level, kWp >= 10, ranked by that building's yield-weighted `kwh_kwp`. See section 3 for the full reasoning and the corrected potential figures.
-- **Suitable-roof display rule:** every qualifying building drawn per Stadtteil, on click, one Stadtteil at a time; the top 20 per Stadtteil by `kwh_kwp` highlighted; aggregates always count every qualifying building, never only the top 20.
+- **Suitable-roof display rule:** every qualifying building drawn per Stadtteil, on click, one Stadtteil at a time, coloured by roof quality (Fair/Good/Excellent, fixed citywide `kwh_kwp` thresholds, not a per-district top 20 any more, see section 3); aggregates always count every qualifying building, regardless of band.
 - **Storage geography and focus:** postcode facts (unit count, kWh) inside the Stadtteil panel for the rest, large units (>100 kW) called out as exact dots, an NRW-wide >1 MW layer added for contrast, battery potential reframed away from a home-battery count.
 - **One geography, not two:** Stadtteil is the only map layer. PLZ realization and PLZ-level potential, briefly a second map view in v2.1/v2.2, are removed as a view; their numbers survive as postcode facts in the Stadtteil panel. See the v2.3 changelog entry for the measured crossing figures and why apportioning a per-Stadtteil realization rate was rejected.
 

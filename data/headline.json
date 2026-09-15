@@ -1,0 +1,6 @@
+{
+  "full_buildout_coverage_pct": 36.6,
+  "heatwave_coverage_pct": 34.7,
+  "day_ratio": 0.9474,
+  "note": "heatwave_coverage_pct = full_buildout_coverage_pct times the heatwave worst day's derated generation divided by the matched normal day's derated generation, both at 100% build-out. Restates the already-reported day-level derate comparison as a percentage of city consumption, does not model a heatwave-affected year."
+}
