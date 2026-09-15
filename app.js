@@ -24,6 +24,25 @@ function slugify(name) {
   return out;
 }
 
+// --- Info modal: what the page models, the suitability rule, sources,
+// and the cooling-demand caveat, all moved out of the main page into one
+// place a visitor opens on purpose. ---------------------------------------
+
+function openInfoModal() {
+  document.getElementById("info-modal").hidden = false;
+}
+
+function closeInfoModal() {
+  document.getElementById("info-modal").hidden = true;
+}
+
+document.getElementById("info-button").addEventListener("click", openInfoModal);
+document.getElementById("info-close").addEventListener("click", closeInfoModal);
+document.getElementById("info-backdrop").addEventListener("click", closeInfoModal);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !document.getElementById("info-modal").hidden) closeInfoModal();
+});
+
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
   maxZoom: 19,
@@ -57,6 +76,21 @@ function colorForValue(value, breaks) {
 
 function formatNumber(n) {
   return Math.round(n).toLocaleString("en-US");
+}
+
+// Unit tiers (SCOPE.md-adjacent UX rule, not a data change): city level
+// shows capacity in GW and annual energy in TWh, district level MW and
+// GWh, building level kW and kWh. Never mix tiers on one screen, never
+// more than four digits before the decimal. City-level figures use 2
+// significant figures (matches "1.4 GW", "0.16 GW" on the page); district
+// and building figures use fixed decimals, since they never approach a
+// range where significant-figure rounding would matter.
+function formatGW(kwp) {
+  return `${Number(kwp / 1e6).toPrecision(2)} GW`;
+}
+
+function formatTWh(mwh) {
+  return `${Number(mwh / 1e6).toPrecision(2)} TWh`;
 }
 
 // Planar shoelace formula on raw lon/lat. Not a true geodesic area, but
@@ -160,28 +194,20 @@ function activeStyleFn(feature) {
   };
 }
 
-function updateHeaderTotals(features, properties) {
-  const totalBuildings = features.reduce((sum, f) => sum + f.properties.qualifying_buildings, 0);
+// Four labelled figures, not a run-on sentence, each in the city-level
+// unit tier (GW capacity, TWh annual energy). The suitability-rule
+// sentence that used to sit under these moved into the (i) panel, it
+// never belonged in a stats strip.
+function updateCityStrip(features, properties) {
   const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
   const totalMwh = features.reduce((sum, f) => sum + f.properties.total_mwh, 0);
+  const registeredKwp = properties.registered_pv_kwp || 0;
+  const realizationPct = registeredKwp ? (registeredKwp / totalKwp) * 100 : 0;
 
-  let html =
-    `<strong>${formatNumber(totalBuildings)}</strong> qualifying buildings &middot; ` +
-    `<strong>${formatNumber(totalKwp)} kWp</strong> roof potential &middot; ` +
-    `<strong>${formatNumber(totalMwh)} MWh</strong>/year`;
-
-  if (properties.registered_pv_kwp) {
-    const realizationPct = (properties.registered_pv_kwp / totalKwp) * 100;
-    html +=
-      ` &middot; <strong>${formatNumber(properties.registered_pv_kwp)} kWp</strong> registered, ` +
-      `<strong>${realizationPct.toFixed(1)}%</strong> of potential built`;
-  }
-
-  document.getElementById("header-totals").innerHTML = html;
-
-  if (properties.qualifying_rule_sentence) {
-    document.getElementById("header-rule").textContent = properties.qualifying_rule_sentence;
-  }
+  document.getElementById("stat-potential").textContent = formatGW(totalKwp);
+  document.getElementById("stat-annual").textContent = formatTWh(totalMwh);
+  document.getElementById("stat-built").textContent = formatGW(registeredKwp);
+  document.getElementById("stat-realization").textContent = `${realizationPct.toFixed(1)}%`;
 }
 
 function buildingPopupHtml(props) {
@@ -350,7 +376,7 @@ fetch("data/stadtteile.json")
     stadtteilLabels.addTo(map);
 
     updateLegend("Roof potential (kWp)", potentialBreaksInfo.breaks, potentialBreaksInfo.min, potentialBreaksInfo.max);
-    updateHeaderTotals(data.features, data.properties);
+    updateCityStrip(data.features, data.properties);
     updateFooter(data.properties);
 
     // Fix: fitBounds/invalidateSize must run after the header and footer
@@ -367,7 +393,7 @@ fetch("data/stadtteile.json")
     });
   })
   .catch((err) => {
-    document.getElementById("header-totals").textContent = "Could not load stadtteile.json.";
+    document.getElementById("stat-potential").textContent = "?";
     console.error(err);
   });
 

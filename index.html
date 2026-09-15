@@ -11,11 +11,44 @@
   <div id="app">
     <header>
       <div class="header-row">
-        <h1>Duesseldorf Solar + Storage Potential</h1>
-        <div class="totals" id="header-totals">Loading citywide totals...</div>
+        <h1>Duesseldorf Solar + Storage</h1>
+        <button type="button" id="info-button" class="info-button" aria-label="About this page" title="About this page">i</button>
       </div>
-      <div class="rule" id="header-rule"></div>
+      <p class="subtitle">If every suitable roof in Duesseldorf had solar, would it power the city? And what happens when it gets hot?</p>
+      <div class="city-strip" id="city-strip">
+        <div class="city-stat">
+          <div class="city-stat-value" id="stat-potential">&hellip;</div>
+          <div class="city-stat-label">of rooftop solar possible</div>
+        </div>
+        <div class="city-stat">
+          <div class="city-stat-value" id="stat-annual">&hellip;</div>
+          <div class="city-stat-label">it would generate each year</div>
+        </div>
+        <div class="city-stat">
+          <div class="city-stat-value" id="stat-built">&hellip;</div>
+          <div class="city-stat-label">built so far</div>
+        </div>
+        <div class="city-stat">
+          <div class="city-stat-value" id="stat-realization">&hellip;</div>
+          <div class="city-stat-label">of the potential used</div>
+        </div>
+      </div>
     </header>
+    <div id="info-modal" class="info-modal" hidden>
+      <div class="info-modal-backdrop" id="info-backdrop"></div>
+      <div class="info-modal-content" role="dialog" aria-modal="true" aria-labelledby="info-modal-title">
+        <button type="button" id="info-close" class="info-close" aria-label="Close">&times;</button>
+        <h2 id="info-modal-title">About this page</h2>
+        <h3>What this models</h3>
+        <p>A thought experiment: every suitable roof in Duesseldorf carries solar, feeding storage. It is not a forecast, and it is not a plan anyone has proposed.</p>
+        <h3>What counts as a suitable roof</h3>
+        <p>A building qualifies once its roof faces sum to at least 10 kW. North-facing pitched faces are excluded. Flat roofs count, since panels on them are angled south regardless of the roof's raw tilt.</p>
+        <h3>Where the numbers come from</h3>
+        <p>Roof potential: Solarkataster NRW. What is already installed: the Marktstammdatenregister, Germany's renewable energy registry. Weather, for the heatwave comparison: ERA5, via Open-Meteo.</p>
+        <h3>The cooling-demand figure</h3>
+        <p>The cooling-demand toggle uses a France analogue: French evening electricity demand ran 25% above off-season levels during the 2025 heatwaves (IEA). German residential air conditioning ownership is too low for a domestic figure to exist, so this is the closest real comparison available, never a Duesseldorf measurement.</p>
+      </div>
+    </div>
     <div id="map">
       <div id="control-panel" class="control-panel">
         <div class="control-section-title">LAYERS</div>
