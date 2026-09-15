@@ -630,30 +630,52 @@ footer a {
   color: #ffffff;
 }
 
-.big-numbers {
-  display: flex;
-  gap: 24px;
+.derate-ladder {
   padding: 4px 0 16px 0;
 }
 
-.big-number-label {
-  font-size: 11px;
-  color: #6b7280;
-  margin-bottom: 2px;
+.ladder-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
 }
 
-.big-number-value {
-  font-size: 22px;
+.ladder-table td {
+  padding: 4px 0;
+  vertical-align: baseline;
+}
+
+.ladder-label {
+  color: #6b7280;
+  white-space: nowrap;
+  padding-right: 12px;
+}
+
+.ladder-value {
   font-weight: 700;
   color: #1f2933;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
+  white-space: nowrap;
+  padding-right: 12px;
 }
 
-.big-number-delta {
-  font-size: 13px;
+.ladder-table tr:first-child .ladder-value {
   font-weight: 600;
+}
+
+.ladder-table td.ladder-note {
+  font-size: 11px;
   color: #a63603;
+  font-weight: 500;
+  padding-left: 10px;
+  white-space: nowrap;
+}
+
+.ladder-caption {
+  font-size: 11px;
+  color: #8a8f98;
+  margin-top: 8px;
+  line-height: 1.4;
 }
 
 .scenario-headline {

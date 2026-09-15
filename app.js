@@ -643,45 +643,52 @@ function formatDate(iso) {
   return `${d} ${months[m - 1]} ${y}`;
 }
 
-// The payoff of the panel: normal day vs heatwave day, always both shown
-// together (not swapped by the heatwave toggle, which instead picks
-// which of the two the chart below plots hour by hour). City-level
-// figures, so MWh, the same tier the rest of this comparison already
-// uses (see build_generation.py's own headline print).
-function renderBigNumbers() {
+// One ladder instead of two separate derate figures that read as a
+// contradiction ("5.3% less" next to "6.5% lost", measuring different
+// things: heatwave-vs-normal, and normal-vs-lab-rating). Three steps
+// down from the same lab rating: normal summer days already run hot in
+// full midday sun (panels are rated at 25 degC, not Duesseldorf ambient),
+// the heatwave subtracts again on top of that, it does not replace it.
+function renderDerateLadder() {
   const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
   const heatC = generationData.citywide["heatwave_" + buildoutKeySuffix()];
+  const labMwh = normalC.total_rated_kwh / 1000;
   const normalMwh = normalC.total_derated_kwh / 1000;
   const heatMwh = heatC.total_derated_kwh / 1000;
-  const diffPct = (1 - heatMwh / normalMwh) * 100;
+  const normalLostPct = (1 - normalC.total_derated_kwh / normalC.total_rated_kwh) * 100;
+  const heatLostPct = (1 - heatMwh / normalMwh) * 100;
 
-  document.getElementById("big-numbers").innerHTML = `
-    <div class="big-number">
-      <div class="big-number-label">Normal day</div>
-      <div class="big-number-value">${formatNumber(normalMwh)} MWh</div>
-    </div>
-    <div class="big-number">
-      <div class="big-number-label">Heatwave day</div>
-      <div class="big-number-value">${formatNumber(heatMwh)} MWh
-        <span class="big-number-delta">(${diffPct.toFixed(1)}% less)</span></div>
-    </div>`;
+  document.getElementById("derate-ladder").innerHTML = `
+    <table class="ladder-table">
+      <tr>
+        <td class="ladder-label">Lab rating (25&deg;C)</td>
+        <td class="ladder-value">${formatNumber(labMwh)} MWh</td>
+        <td class="ladder-note"></td>
+      </tr>
+      <tr>
+        <td class="ladder-label">Normal summer day</td>
+        <td class="ladder-value">${formatNumber(normalMwh)} MWh</td>
+        <td class="ladder-note">${normalLostPct.toFixed(1)}% lost to everyday heat</td>
+      </tr>
+      <tr>
+        <td class="ladder-label">Heatwave day</td>
+        <td class="ladder-value">${formatNumber(heatMwh)} MWh</td>
+        <td class="ladder-note">${heatLostPct.toFixed(1)}% lost again to the heatwave</td>
+      </tr>
+    </table>
+    <div class="ladder-caption">Panels are rated at 25&deg;C in a lab and run hotter than that in full sun on any clear summer day, not only during heatwaves.</div>`;
 }
 
 function renderScenarioHeadline() {
-  const key = scenarioKey();
-  const c = generationData.citywide[key];
   const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
 
   let html = "";
   if (scenarioHeatwave) {
+    const c = generationData.citywide[scenarioKey()];
     const windowLostKwh = c.window_total_rated_kwh - c.window_total_derated_kwh;
-    html += `Worst-hour derate <strong>${c.worst_hour_derate_pct}%</strong>. Across the full 24&ndash;28 June ` +
-      `window: ${formatNumber(c.window_total_derated_kwh)} kWh generated, ${formatNumber(windowLostKwh)} kWh ` +
-      `lost to derate, average daylight derate ${c.avg_daylight_derate_pct}%.`;
-  } else {
-    const lostPct = (1 - c.total_derated_kwh / c.total_rated_kwh) * 100;
-    html += `Rated ${formatNumber(c.total_rated_kwh)} kWh, ${lostPct.toFixed(1)}% lost to ordinary heat derate, ` +
-      `not a heatwave effect.`;
+    html += `Across the full 24&ndash;28 June heatwave window: ${formatNumber(c.window_total_derated_kwh)} kWh ` +
+      `generated, ${formatNumber(windowLostKwh)} kWh lost to derate, average daylight derate ` +
+      `${c.avg_daylight_derate_pct}%.`;
   }
   html += `<span class="headline-note">At ${cov.buildout_label} build-out, Duesseldorf's rooftops generate ` +
     `${formatTWhFromGwh(cov.annual_gwh)} a year, ${cov.coverage_pct}% of the city's own ` +
@@ -718,7 +725,7 @@ function renderScenarioStats() {
 // Per-hour loss = 1 - derated/rated, from the same two precomputed
 // arrays the old chart plotted (generation_scenarios.json). This is a
 // display ratio from two already-precomputed numbers, the same pattern
-// already used throughout this file (renderBigNumbers' diffPct,
+// already used throughout this file (renderDerateLadder's lost-percent figures,
 // updateCityStrip's realizationPct), not a new calculation of anything
 // the Python side did not already model.
 const LOSS_STRIP_COLOR_LOW = [254, 237, 222]; // #feedde, no loss
@@ -763,7 +770,7 @@ function renderLossStrip() {
 
 function updateScenarioView() {
   if (!generationData || !coverageData || !batteryData) return;
-  renderBigNumbers();
+  renderDerateLadder();
   renderScenarioHeadline();
   renderLossStrip();
   renderScenarioStats();
