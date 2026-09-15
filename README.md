@@ -8,7 +8,7 @@ Full plan, decisions, and reasoning: [SCOPE.md](SCOPE.md). Read that first.
 
 https://bnoone.github.io/duesseldorf-solar-storage/
 
-Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp), the only geography on the map by default. Click one to see every qualifying building in it, plus the postcodes it sits in and their own exact PV, realization, and storage figures. Toggle the storage layer to see Duesseldorf's large battery units and NRW's for scale. Below the map, the scenario panel compares a matched normal day against Duesseldorf's own June 2026 heatwave, at four build-out levels, with an hourly chart, a battery-case summary, and an AC demand-surge toggle (a France analogue, chart annotation only); an optional control recolours the map by that scenario's own generation instead of roof potential.
+The screen splits map (about 70%) and a scenario panel (about 30%), open by default; a "Hide" button collapses the panel to a narrow tab so the map can take the full width, without ever hiding the panel's content behind a control someone has to discover first. Shows the 50 Duesseldorf Stadtteile, coloured by roof potential (kWp), the only geography on the map by default. Click one to see every qualifying building in it, plus the postcodes it sits in and their own exact PV, realization, and storage figures. Toggle the storage layer to see Duesseldorf's large battery units and NRW's for scale. The panel's own top line answers the page's subtitle directly, in a live-updating percentage, before any other number; below it, the scenario controls compare a matched normal day against Duesseldorf's own June 2026 heatwave, at four build-out levels, with an hourly chart, a battery-case summary, and an AC demand-surge toggle (a France analogue, chart annotation only); an optional control recolours the map by that scenario's own generation instead of roof potential.
 
 ## What is built so far
 
@@ -47,6 +47,7 @@ python3 scripts/find_heatwave_window.py
 python3 scripts/build_generation.py
 python3 scripts/build_coverage.py
 python3 scripts/build_battery.py
+python3 scripts/build_headline.py
 ```
 
 - `fetch_solarkataster.py` downloads the Solarkataster NRW roof-potential shapefile for Duesseldorf (opengeodata.nrw.de, ~98 MB, skips if already present).
@@ -63,6 +64,7 @@ python3 scripts/build_battery.py
 - `build_generation.py` is the spine of the scenario panel: hourly rated and derated generation on the matched normal day and across the full heatwave window, at every build-out level (11.6%, 30%, 50%, 100%), both citywide and per Stadtteil. Derate uses the NOCT cell temperature model and the -0.35%/degC coefficient applied to cell temperature. Rated generation scales real ERA5 irradiance so the full 2025 year reproduces each Stadtteil's cadastre annual yield exactly at 100% build-out, so this never becomes a second, disagreeing generation figure. Writes `data/generation_scenarios.json` (8 precomputed scenario combinations, 44 KB).
 - `build_coverage.py` sets annual generation at each build-out level against Duesseldorf's own annual electricity consumption (3,049 GWh, 2022, Energie- und Treibhausgasbilanz). 100% build-out uses the Solarkataster cadastre's own annual total; other levels scale it uniformly, same simplification as `build_generation.py`. Writes `data/coverage.json`.
 - `build_battery.py` is the battery case: how much of each day's midday generation a 1.5 kWh/kWp battery could shift into the evening, no demand curve used or invented. Midday and evening are fixed hour windows (`common.py`), a stated modelling convention, not a sourced figure. Writes `data/battery_case.json`.
+- `build_headline.py` precomputes the scenario panel's top line, the direct answer to the page's subtitle: full build-out coverage percentage (from `build_coverage.py`) and what it drops to on the heatwave's worst day. Not new data: the heatwave figure restates the already-verified day-level derate ratio (`build_generation.py`) as a percentage of city consumption instead of a percentage of the normal day, so the browser only ever selects a value, never combines two datasets itself. Writes `data/headline.json`.
 - `common.py` holds the constants and the exclusion rule shared by the roof-potential build scripts, so the rule cannot drift between them, plus the heatwave derate model constants, the found heatwave window and matched normal day, and the battery-case hour windows.
 
 Downloaded source files land in `data/raw/`, gitignored, not committed.

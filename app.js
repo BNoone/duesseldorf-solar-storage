@@ -43,6 +43,36 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !document.getElementById("info-modal").hidden) closeInfoModal();
 });
 
+// --- Side panel: open by default, collapsible without hiding content
+// behind a button someone has to discover first. -------------------------
+
+let sidePanelCollapsed = false;
+
+function setSidePanelCollapsed(collapsed) {
+  sidePanelCollapsed = collapsed;
+  document.getElementById("side-panel").classList.toggle("collapsed", collapsed);
+  document.getElementById("panel-toggle").textContent = collapsed ? "Scenarios" : "Hide";
+  // The map's flex-basis changes as the panel collapses/expands; Leaflet
+  // needs to remeasure after the CSS transition settles, not mid-flight.
+  setTimeout(() => map.invalidateSize(), 200);
+}
+
+document.getElementById("panel-toggle").addEventListener("click", () => {
+  setSidePanelCollapsed(!sidePanelCollapsed);
+});
+
+// --- Panel's top line: the direct answer to the header's own subtitle,
+// precomputed (scripts/build_headline.py) from two figures already
+// verified elsewhere on the page, never calculated here. -----------------
+
+fetch("data/headline.json")
+  .then((res) => res.json())
+  .then((data) => {
+    document.getElementById("answer-full-pct").textContent = `${data.full_buildout_coverage_pct}%`;
+    document.getElementById("answer-heat-pct").textContent = `${data.heatwave_coverage_pct}%`;
+  })
+  .catch((err) => console.error(err));
+
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
   maxZoom: 19,

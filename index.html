@@ -49,75 +49,86 @@
         <p>The cooling-demand toggle uses a France analogue: French evening electricity demand ran 25% above off-season levels during the 2025 heatwaves (IEA). German residential air conditioning ownership is too low for a domestic figure to exist, so this is the closest real comparison available, never a Duesseldorf measurement.</p>
       </div>
     </div>
-    <div id="map">
-      <div id="control-panel" class="control-panel">
-        <div class="control-section-title">LAYERS</div>
-        <label class="control-row">
-          <input type="checkbox" id="layer-storage-dus">
-          Large storage, Duesseldorf
-        </label>
-        <label class="control-row">
-          <input type="checkbox" id="layer-storage-nrw">
-          Large storage, NRW above 1 MW
-        </label>
-        <div class="control-note" id="nrw-zoom-hint" hidden>Zoom out to see NRW units; almost all of them are outside Duesseldorf.</div>
-        <div class="control-note" id="storage-note"></div>
+    <div id="main-row" class="main-row">
+      <div id="map">
+        <div id="control-panel" class="control-panel">
+          <div class="control-section-title">LAYERS</div>
+          <label class="control-row">
+            <input type="checkbox" id="layer-storage-dus">
+            Large storage, Duesseldorf
+          </label>
+          <label class="control-row">
+            <input type="checkbox" id="layer-storage-nrw">
+            Large storage, NRW above 1 MW
+          </label>
+          <div class="control-note" id="nrw-zoom-hint" hidden>Zoom out to see NRW units; almost all of them are outside Duesseldorf.</div>
+          <div class="control-note" id="storage-note"></div>
+        </div>
+        <div id="drilldown-panel" class="drilldown-panel" hidden>
+          <button id="back-to-overview" class="back-button">&larr; Back to city overview</button>
+          <h2 id="drilldown-title"></h2>
+          <table class="drilldown-stats">
+            <tr><td class="label">Qualifying buildings</td><td class="value" id="drilldown-buildings"></td></tr>
+            <tr><td class="label">Roof potential</td><td class="value" id="drilldown-kwp"></td></tr>
+            <tr><td class="label">Annual yield</td><td class="value" id="drilldown-mwh"></td></tr>
+            <tr><td class="label">Battery potential</td><td class="value" id="drilldown-battery"></td></tr>
+          </table>
+          <div class="drilldown-rule">Every building at or above 10 kWp is shown. The 20 highest-yield in this neighbourhood are highlighted in gold. North-facing roof faces are excluded.</div>
+          <div class="drilldown-postcodes" id="drilldown-postcodes"></div>
+          <div class="drilldown-postcode-note">Installed capacity below is shown per postcode, not per neighbourhood, because the national registry publishes no location finer than postcode for systems under 30 kWp.</div>
+          <div class="drilldown-status" id="drilldown-status"></div>
+        </div>
       </div>
-      <div id="drilldown-panel" class="drilldown-panel" hidden>
-        <button id="back-to-overview" class="back-button">&larr; Back to city overview</button>
-        <h2 id="drilldown-title"></h2>
-        <table class="drilldown-stats">
-          <tr><td class="label">Qualifying buildings</td><td class="value" id="drilldown-buildings"></td></tr>
-          <tr><td class="label">Roof potential</td><td class="value" id="drilldown-kwp"></td></tr>
-          <tr><td class="label">Annual yield</td><td class="value" id="drilldown-mwh"></td></tr>
-          <tr><td class="label">Battery potential</td><td class="value" id="drilldown-battery"></td></tr>
-        </table>
-        <div class="drilldown-rule">Every building at or above 10 kWp is shown. The 20 highest-yield in this neighbourhood are highlighted in gold. North-facing roof faces are excluded.</div>
-        <div class="drilldown-postcodes" id="drilldown-postcodes"></div>
-        <div class="drilldown-postcode-note">Installed capacity below is shown per postcode, not per neighbourhood, because the national registry publishes no location finer than postcode for systems under 30 kWp.</div>
-        <div class="drilldown-status" id="drilldown-status"></div>
-      </div>
-    </div>
-    <section id="scenario-panel" class="scenario-panel">
-      <div class="scenario-heading">
-        <h2>Scenario: normal day vs heatwave</h2>
-        <p class="scenario-intro">Same rooftops, two conditions. How much energy on a normal day, how much on a heatwave day. A thought experiment, not a forecast.</p>
-      </div>
-      <div class="scenario-controls">
-        <label class="scenario-toggle">
-          <input type="checkbox" id="toggle-heatwave">
-          <span>Heatwave (24&ndash;28 June 2026)</span>
-        </label>
-        <label class="scenario-toggle">
-          <input type="checkbox" id="toggle-ac-surge">
-          <span>AC demand surge (France analogue)</span>
-        </label>
-        <div class="buildout-control">
-          <span class="buildout-control-label">Build-out</span>
-          <div class="buildout-steps" id="buildout-steps">
-            <button type="button" class="buildout-step active" data-pct="11.6">12%</button>
-            <button type="button" class="buildout-step" data-pct="30.0">30%</button>
-            <button type="button" class="buildout-step" data-pct="50.0">50%</button>
-            <button type="button" class="buildout-step" data-pct="100.0">100%</button>
+      <aside id="side-panel" class="side-panel">
+        <button type="button" id="panel-toggle" class="panel-toggle" title="See the stats and play with scenarios">Hide</button>
+        <div id="side-panel-content" class="side-panel-content">
+          <div class="panel-answer" id="panel-answer">
+            <p>At full build-out, Duesseldorf's rooftops would cover <strong id="answer-full-pct">&hellip;</strong> of the city's electricity.</p>
+            <p>On the hottest days, that drops to <strong id="answer-heat-pct">&hellip;</strong>.</p>
           </div>
+          <section id="scenario-panel" class="scenario-panel">
+            <div class="scenario-heading">
+              <h2>Normal day vs heatwave</h2>
+              <p class="scenario-intro">Same rooftops, two conditions. How much energy on a normal day, how much on a heatwave day. A thought experiment, not a forecast.</p>
+            </div>
+            <div class="scenario-controls">
+              <label class="scenario-toggle">
+                <input type="checkbox" id="toggle-heatwave">
+                <span>Heatwave (24&ndash;28 June 2026)</span>
+              </label>
+              <label class="scenario-toggle">
+                <input type="checkbox" id="toggle-ac-surge">
+                <span>AC demand surge (France analogue)</span>
+              </label>
+              <div class="buildout-control">
+                <span class="buildout-control-label">Build-out</span>
+                <div class="buildout-steps" id="buildout-steps">
+                  <button type="button" class="buildout-step active" data-pct="11.6">12%</button>
+                  <button type="button" class="buildout-step" data-pct="30.0">30%</button>
+                  <button type="button" class="buildout-step" data-pct="50.0">50%</button>
+                  <button type="button" class="buildout-step" data-pct="100.0">100%</button>
+                </div>
+              </div>
+              <label class="scenario-toggle map-color-toggle">
+                <input type="checkbox" id="toggle-map-color">
+                <span>Colour the map by this scenario's generation</span>
+              </label>
+            </div>
+            <div class="scenario-headline" id="scenario-headline">Loading scenario data...</div>
+            <div class="scenario-body">
+              <div class="scenario-chart-wrap">
+                <canvas id="scenario-chart" height="220"></canvas>
+                <div class="chart-caption" id="chart-caption">Hourly generation, rated (undegraded) vs derated. Evening (18:00&ndash;21:59) shaded.</div>
+              </div>
+              <div class="scenario-stats-wrap">
+                <div class="scenario-stats" id="scenario-stats"></div>
+                <div class="scenario-asymmetry-note">Supply above is modelled hour by hour from real ERA5 weather. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the AC surge above is a single cited figure applied to a window, not a modelled curve.</div>
+              </div>
+            </div>
+          </section>
         </div>
-        <label class="scenario-toggle map-color-toggle">
-          <input type="checkbox" id="toggle-map-color">
-          <span>Colour the map by this scenario's generation</span>
-        </label>
-      </div>
-      <div class="scenario-headline" id="scenario-headline">Loading scenario data...</div>
-      <div class="scenario-body">
-        <div class="scenario-chart-wrap">
-          <canvas id="scenario-chart" height="220"></canvas>
-          <div class="chart-caption" id="chart-caption">Hourly generation, rated (undegraded) vs derated. Evening (18:00&ndash;21:59) shaded.</div>
-        </div>
-        <div class="scenario-stats-wrap">
-          <div class="scenario-stats" id="scenario-stats"></div>
-          <div class="scenario-asymmetry-note">Supply above is modelled hour by hour from real ERA5 weather. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the AC surge above is a single cited figure applied to a window, not a modelled curve.</div>
-        </div>
-      </div>
-    </section>
+      </aside>
+    </div>
     <footer id="footer">
       Sources: Solarkataster NRW (opengeodata.nrw.de) and Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025.
     </footer>
