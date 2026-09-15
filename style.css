@@ -421,6 +421,44 @@ footer a {
   margin: 0 0 6px 0;
   font-size: 13px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.popup-info-btn {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 1px solid #8a8f98;
+  background: transparent;
+  color: #6b7280;
+  font-size: 10px;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.popup-info-btn:hover {
+  background: #f0efe9;
+  color: #1f2933;
+  border-color: #1f2933;
+}
+
+.popup-info-note {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.4;
+  margin: -2px 0 8px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #ececea;
 }
 
 .building-popup table {

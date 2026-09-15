@@ -80,6 +80,15 @@ CITY_ELECTRICITY_CONSUMPTION_YEAR = 2022
 MIDDAY_HOURS = [11, 12, 13, 14, 15]
 EVENING_HOURS = [18, 19, 20, 21]
 
+# Roof-quality band thresholds (UX pass commit 4), on the cadastre's own
+# kwh_kwp, set once from the real citywide distribution across all 48,475
+# qualifying buildings (scripts/compute_roof_quality_bands.py), then
+# fixed. Absolute thresholds, not per-district quantiles, so "Good" means
+# the same roof quality everywhere, not "average for this neighbourhood".
+# Mirrored in app.js for building colour and the popup label.
+ROOF_QUALITY_FAIR_GOOD_KWH_KWP = 730.0
+ROOF_QUALITY_GOOD_EXCELLENT_KWH_KWP = 830.0
+
 
 def exclude_north_facing_pitched(facets):
     """Drop facets where dachtyp == 'geneigt' and himmel_kat == 'Nord'.

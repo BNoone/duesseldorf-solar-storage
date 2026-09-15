@@ -4,6 +4,26 @@ const DEFAULT_ZOOM = 12;
 // ColorBrewer "Oranges", 5-class sequential single-hue scale.
 const CHOROPLETH_COLORS = ["#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"];
 
+// Roof-quality bands on the cadastre's own kwh_kwp (capacity-weighted
+// specific yield), set once from the real citywide distribution and
+// fixed (scripts/compute_roof_quality_bands.py, common.py). Absolute
+// thresholds, not per-district quantiles, so "Good" means the same roof
+// quality in every neighbourhood, not "average for this one".
+const ROOF_QUALITY_FAIR_GOOD_KWH_KWP = 730.0;
+const ROOF_QUALITY_GOOD_EXCELLENT_KWH_KWP = 830.0;
+
+function roofQualityBand(kwhKwp) {
+  if (kwhKwp >= ROOF_QUALITY_GOOD_EXCELLENT_KWH_KWP) return "Excellent";
+  if (kwhKwp >= ROOF_QUALITY_FAIR_GOOD_KWH_KWP) return "Good";
+  return "Fair";
+}
+
+const ROOF_QUALITY_COLORS = {
+  Fair: { fillColor: "#fdd0a2", color: "#c97f2e" },
+  Good: { fillColor: "#fd8d3c", color: "#a1551f" },
+  Excellent: { fillColor: "#a63603", color: "#5c1e02" },
+};
+
 const map = L.map("map").setView(DUESSELDORF_CENTER, DEFAULT_ZOOM);
 
 let stadtteilLayer = null;
@@ -215,25 +235,36 @@ function updateCityStrip(features, properties) {
   document.getElementById("stat-realization").textContent = `${realizationPct.toFixed(1)}%`;
 }
 
+// Plain language: no "specific yield", no "facets" on screen. Roof
+// quality replaces both, one word instead of a raw kWh/kWp figure a
+// visitor would have no reference point for. The (i) toggle answers
+// "what counts as a qualifying building" without leaving the popup.
 function buildingPopupHtml(props) {
+  const band = roofQualityBand(props.kwh_kwp);
   return `
     <div class="building-popup">
-      <h3>Building</h3>
+      <h3>Building <button type="button" class="popup-info-btn" onclick="toggleBuildingInfo(this)" aria-label="What counts as a qualifying building">i</button></h3>
+      <div class="popup-info-note" hidden>A building qualifies once its roof faces sum to at least 10 kW, excluding north-facing pitched faces. Flat roofs always qualify, since panels on them are angled south.</div>
       <table>
-        <tr><td class="label">Roof potential</td><td class="value">${formatNumber(props.total_kwp)} kWp</td></tr>
-        <tr><td class="label">Annual yield</td><td class="value">${formatNumber(props.total_kwh / 1000)} MWh</td></tr>
-        <tr><td class="label">Specific yield</td><td class="value">${formatNumber(props.kwh_kwp)} kWh/kWp</td></tr>
-        <tr><td class="label">Facets</td><td class="value">${props.facet_count}</td></tr>
+        <tr><td class="label">Space for solar</td><td class="value">${formatNumber(props.total_kwp)} kW</td></tr>
+        <tr><td class="label">Would generate</td><td class="value">${formatNumber(props.total_kwh)} kWh a year</td></tr>
+        <tr><td class="label">Roof quality</td><td class="value">${band}</td></tr>
       </table>
     </div>`;
 }
 
+function toggleBuildingInfo(btn) {
+  const note = btn.closest(".building-popup").querySelector(".popup-info-note");
+  note.hidden = !note.hidden;
+}
+
 // The old top-20-by-yield gold highlight is gone (never explained on the
-// page, see UX pass commit 3); every qualifying building gets the same
-// style. Commit 4 replaces this popup with roof-quality colouring and
-// plain-language wording.
-function buildingStyle() {
-  return { fillColor: "#fd8d3c", fillOpacity: 0.7, color: "#a1551f", weight: 0.5 };
+// page); buildings are now coloured by roof quality instead, the
+// cadastre's own kwh_kwp bucketed into three fixed, citywide bands.
+function buildingStyle(feature) {
+  const band = roofQualityBand(feature.properties.kwh_kwp);
+  const colors = ROOF_QUALITY_COLORS[band];
+  return { fillColor: colors.fillColor, fillOpacity: 0.75, color: colors.color, weight: 0.5 };
 }
 
 let currentDrilldownName = null;
