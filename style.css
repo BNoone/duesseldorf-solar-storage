@@ -258,7 +258,7 @@ footer a {
   color: #fff;
   border: none;
   border-radius: 3px;
-  padding: 3px 8px;
+  padding: 6px 9px;
   font-size: 12px;
   font-weight: 500;
   box-shadow: none;
@@ -267,32 +267,15 @@ footer a {
   border-top-color: #1f2933;
 }
 
-.legend {
-  background: #ffffff;
-  padding: 10px 12px;
-  border-radius: 4px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-  font-size: 12px;
-  color: #1f2933;
-  line-height: 1.5;
-}
-
-.legend .legend-title {
+.district-tooltip-name {
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
-.legend .legend-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.legend .swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 2px;
-  flex: 0 0 auto;
+.district-tooltip-row {
+  font-weight: 400;
+  color: #d8d5cd;
+  font-variant-numeric: tabular-nums;
 }
 
 .stadtteil-label {
@@ -607,10 +590,6 @@ footer a {
   background: #1f2933;
   border-color: #1f2933;
   color: #ffffff;
-}
-
-.map-color-toggle {
-  color: #6b7280;
 }
 
 .scenario-headline {

@@ -169,59 +169,34 @@ function polygonAreaAndCentroid(geometry) {
   return { totalArea, centroid: best.centroid };
 }
 
-let legendControl = null;
-
-// Re-callable so the scenario panel's "colour the map" toggle can swap the
-// legend between roof potential and scenario generation without leaving a
-// stale control behind.
-function updateLegend(title, breaks, minValue, maxValue) {
-  if (legendControl) map.removeControl(legendControl);
-  legendControl = L.control({ position: "bottomright" });
-  legendControl.onAdd = function () {
-    const div = L.DomUtil.create("div", "legend");
-    const edges = [minValue, ...breaks, maxValue];
-    let html = `<div class="legend-title">${title}</div>`;
-    for (let i = 0; i < CHOROPLETH_COLORS.length; i++) {
-      const lo = formatNumber(edges[i]);
-      const hi = formatNumber(edges[i + 1]);
-      html += `
-        <div class="legend-row">
-          <span class="swatch" style="background:${CHOROPLETH_COLORS[i]}"></span>
-          <span>${lo} &ndash; ${hi}</span>
-        </div>`;
-    }
-    div.innerHTML = html;
-    return div;
-  };
-  legendControl.addTo(map);
-}
-
-// Which per-Stadtteil value currently drives the choropleth: static roof
-// potential (the default, always available) or the selected scenario's
-// generation (only once the scenario panel's own data has loaded and its
-// "colour the map" toggle is on). Kept as one function so hover/reset and
-// the initial paint never disagree about the current styling.
-let colorMode = "potential";
+// No legend: the choropleth is always roof potential, and hover now
+// explains it directly (name, possible capacity, qualifying buildings)
+// instead of asking a visitor to cross-reference a corner legend.
 let potentialBreaksInfo = null;
-let scenarioBreaksInfo = null;
 
 function activeStyleFn(feature) {
-  if (colorMode === "scenario" && scenarioBreaksInfo) {
-    const st = generationData.by_stadtteil[feature.properties.name];
-    const val = st ? st[scenarioKey()].total_derated_kwh : 0;
-    return {
-      fillColor: colorForValue(val, scenarioBreaksInfo.breaks),
-      fillOpacity: 0.8,
-      color: "#ffffff",
-      weight: 1,
-    };
-  }
   return {
     fillColor: colorForValue(feature.properties.total_kwp, potentialBreaksInfo.breaks),
     fillOpacity: 0.8,
     color: "#ffffff",
-    weight: 1,
+    weight: 1.5,
   };
+}
+
+// District hover tooltip: name, possible capacity (MW, the district unit
+// tier), and qualifying buildings. Built/installed capacity is
+// deliberately left out here, MaStR only reliably geocodes to postcode,
+// not Stadtteil (SCOPE.md section 3), and apportioning it by roof-potential
+// share was tried once already and rejected as methodologically unsound,
+// worst in exactly the districts people click first. Postcode-level
+// installed capacity is still exact, it lives in the drill-down panel.
+function districtTooltipHtml(props) {
+  const mw = props.total_kwp / 1000;
+  return (
+    `<div class="district-tooltip-name">${props.name}</div>` +
+    `<div class="district-tooltip-row">${mw.toFixed(1)} MW possible &middot; ` +
+    `${formatNumber(props.qualifying_buildings)} qualifying buildings</div>`
+  );
 }
 
 // Four labelled figures, not a run-on sentence, each in the city-level
@@ -243,7 +218,7 @@ function updateCityStrip(features, properties) {
 function buildingPopupHtml(props) {
   return `
     <div class="building-popup">
-      <h3>${props.highlighted ? "Top 20 building" : "Building"}</h3>
+      <h3>Building</h3>
       <table>
         <tr><td class="label">Roof potential</td><td class="value">${formatNumber(props.total_kwp)} kWp</td></tr>
         <tr><td class="label">Annual yield</td><td class="value">${formatNumber(props.total_kwh / 1000)} MWh</td></tr>
@@ -253,10 +228,12 @@ function buildingPopupHtml(props) {
     </div>`;
 }
 
-function buildingStyle(feature) {
-  return feature.properties.highlighted
-    ? { fillColor: "#ffd700", fillOpacity: 0.9, color: "#8a6d00", weight: 1 }
-    : { fillColor: "#fd8d3c", fillOpacity: 0.7, color: "#a1551f", weight: 0.5 };
+// The old top-20-by-yield gold highlight is gone (never explained on the
+// page, see UX pass commit 3); every qualifying building gets the same
+// style. Commit 4 replaces this popup with roof-quality colouring and
+// plain-language wording.
+function buildingStyle() {
+  return { fillColor: "#fd8d3c", fillOpacity: 0.7, color: "#a1551f", weight: 0.5 };
 }
 
 let currentDrilldownName = null;
@@ -362,8 +339,11 @@ fetch("data/stadtteile.json")
     }
 
     function onEachFeature(feature, layer) {
-      // Hover tooltip on every Stadtteil, so no shape is ever unnamed.
-      layer.bindTooltip(feature.properties.name, {
+      // Hover tooltip on every Stadtteil: name, possible capacity, and
+      // qualifying buildings, replacing the old legend, since this shows
+      // potential in context instead of asking a visitor to read a corner
+      // key and do the lookup themselves.
+      layer.bindTooltip(districtTooltipHtml(feature.properties), {
         sticky: true,
         className: "stadtteil-tooltip",
       });
@@ -405,7 +385,6 @@ fetch("data/stadtteile.json")
     });
     stadtteilLabels.addTo(map);
 
-    updateLegend("Roof potential (kWp)", potentialBreaksInfo.breaks, potentialBreaksInfo.min, potentialBreaksInfo.max);
     updateCityStrip(data.features, data.properties);
     updateFooter(data.properties);
 
@@ -631,27 +610,6 @@ function formatDate(iso) {
   return `${d} ${months[m - 1]} ${y}`;
 }
 
-function computeScenarioBreaks(key) {
-  const values = Object.values(generationData.by_stadtteil).map((st) => st[key].total_derated_kwh);
-  return {
-    breaks: quantileBreaks(values, CHOROPLETH_COLORS.length),
-    min: Math.min(...values),
-    max: Math.max(...values),
-  };
-}
-
-function recolorMap() {
-  if (!stadtteilLayer || !generationData) return;
-  if (colorMode === "scenario") {
-    scenarioBreaksInfo = computeScenarioBreaks(scenarioKey());
-    const dayLabel = scenarioHeatwave ? "Heatwave worst day" : "Normal day";
-    updateLegend(`${dayLabel} generation (kWh)`, scenarioBreaksInfo.breaks, scenarioBreaksInfo.min, scenarioBreaksInfo.max);
-  } else {
-    updateLegend("Roof potential (kWp)", potentialBreaksInfo.breaks, potentialBreaksInfo.min, potentialBreaksInfo.max);
-  }
-  stadtteilLayer.eachLayer((l) => l.setStyle(activeStyleFn(l.feature)));
-}
-
 function renderScenarioHeadline() {
   const key = scenarioKey();
   const c = generationData.citywide[key];
@@ -806,7 +764,6 @@ function updateScenarioView() {
   renderScenarioChart();
   renderScenarioStats();
   renderChartCaption();
-  if (colorMode === "scenario") recolorMap();
 }
 
 document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
@@ -825,11 +782,6 @@ document.querySelectorAll(".buildout-step").forEach((btn) => {
     document.querySelectorAll(".buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
     updateScenarioView();
   });
-});
-
-document.getElementById("toggle-map-color").addEventListener("change", (e) => {
-  colorMode = e.target.checked ? "scenario" : "potential";
-  recolorMap();
 });
 
 Promise.all([

@@ -73,7 +73,7 @@
             <tr><td class="label">Annual yield</td><td class="value" id="drilldown-mwh"></td></tr>
             <tr><td class="label">Battery potential</td><td class="value" id="drilldown-battery"></td></tr>
           </table>
-          <div class="drilldown-rule">Every building at or above 10 kWp is shown. The 20 highest-yield in this neighbourhood are highlighted in gold. North-facing roof faces are excluded.</div>
+          <div class="drilldown-rule">Every building at or above 10 kW is shown. North-facing roof faces are excluded.</div>
           <div class="drilldown-postcodes" id="drilldown-postcodes"></div>
           <div class="drilldown-postcode-note">Installed capacity below is shown per postcode, not per neighbourhood, because the national registry publishes no location finer than postcode for systems under 30 kWp.</div>
           <div class="drilldown-status" id="drilldown-status"></div>
@@ -109,10 +109,6 @@
                   <button type="button" class="buildout-step" data-pct="100.0">100%</button>
                 </div>
               </div>
-              <label class="scenario-toggle map-color-toggle">
-                <input type="checkbox" id="toggle-map-color">
-                <span>Colour the map by this scenario's generation</span>
-              </label>
             </div>
             <div class="scenario-headline" id="scenario-headline">Loading scenario data...</div>
             <div class="scenario-body">
