@@ -82,9 +82,18 @@
       <aside id="side-panel" class="side-panel">
         <button type="button" id="panel-toggle" class="panel-toggle" title="See the stats and play with scenarios">Hide</button>
         <div id="side-panel-content" class="side-panel-content">
-          <div class="panel-answer" id="panel-answer">
-            <p>At full build-out, Duesseldorf's rooftops would cover <strong id="answer-full-pct">&hellip;</strong> of the city's electricity.</p>
-            <p>On the hottest days, that drops to <strong id="answer-heat-pct">&hellip;</strong>.</p>
+          <div class="buildout-control" id="buildout-control">
+            <span class="buildout-control-label">Build-out</span>
+            <div class="buildout-steps" id="buildout-steps">
+              <button type="button" class="buildout-step active" data-pct="11.6" title="Today's measured rate, 11.6%">Today</button>
+              <button type="button" class="buildout-step" data-pct="30.0">30%</button>
+              <button type="button" class="buildout-step" data-pct="50.0">50%</button>
+              <button type="button" class="buildout-step" data-pct="100.0">100%</button>
+            </div>
+          </div>
+          <div class="level-answer" id="level-answer">
+            <h2 class="level-answer-heading" id="level-answer-heading">&hellip;</h2>
+            <div class="level-stats" id="level-stats"></div>
           </div>
           <section id="scenario-panel" class="scenario-panel">
             <div class="scenario-heading">
@@ -100,15 +109,6 @@
                 <input type="checkbox" id="toggle-ac-surge">
                 <span>Cooling demand surge</span>
               </label>
-              <div class="buildout-control">
-                <span class="buildout-control-label">Build-out</span>
-                <div class="buildout-steps" id="buildout-steps">
-                  <button type="button" class="buildout-step active" data-pct="11.6" title="Today's measured rate, 11.6%">Today</button>
-                  <button type="button" class="buildout-step" data-pct="30.0">30%</button>
-                  <button type="button" class="buildout-step" data-pct="50.0">50%</button>
-                  <button type="button" class="buildout-step" data-pct="100.0">100%</button>
-                </div>
-              </div>
             </div>
             <div class="derate-ladder" id="derate-ladder">Loading&hellip;</div>
             <div class="scenario-body">

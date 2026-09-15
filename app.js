@@ -81,17 +81,15 @@ document.getElementById("panel-toggle").addEventListener("click", () => {
   setSidePanelCollapsed(!sidePanelCollapsed);
 });
 
-// --- Panel's top line: the direct answer to the header's own subtitle,
-// precomputed (scripts/build_headline.py) from two figures already
-// verified elsewhere on the page, never calculated here. -----------------
-
-fetch("data/headline.json")
-  .then((res) => res.json())
-  .then((data) => {
-    document.getElementById("answer-full-pct").textContent = `${data.full_buildout_coverage_pct}%`;
-    document.getElementById("answer-heat-pct").textContent = `${data.heatwave_coverage_pct}%`;
-  })
-  .catch((err) => console.error(err));
+// The panel's top line used to be pinned to the 100% build-out case
+// always (data/headline.json), stated once and never updated, while
+// every other number in the panel followed whatever build-out level was
+// selected: two scenarios described in the same panel, which is why the
+// build-out control looked like it did nothing to the headline. Now the
+// build-out control is the panel's first control and every number below
+// it, including this heading, describes the selected level; see
+// renderLevelAnswer(). scripts/build_headline.py and data/headline.json
+// are no longer read by the page (see SCOPE.md v3.2).
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
@@ -643,6 +641,28 @@ function formatDate(iso) {
   return `${d} ${months[m - 1]} ${y}`;
 }
 
+// The panel's own top line, and it must describe the SELECTED build-out
+// level, not a fixed one, or the build-out control looks like it does
+// nothing. Both figures already exist in data/coverage.json per level,
+// this only ever picks one out, never computes a new one.
+function renderLevelAnswer() {
+  const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
+  const heading = scenarioBuildoutPct === 11.6
+    ? "At today's build-out"
+    : `At ${cov.buildout_label} of roofs covered`;
+
+  document.getElementById("level-answer-heading").textContent = heading;
+  document.getElementById("level-stats").innerHTML = `
+    <div class="level-stat">
+      <div class="level-stat-value">${formatTWhFromGwh(cov.annual_gwh)}</div>
+      <div class="level-stat-label">a year</div>
+    </div>
+    <div class="level-stat">
+      <div class="level-stat-value">${cov.coverage_pct}%</div>
+      <div class="level-stat-label">of the city's electricity</div>
+    </div>`;
+}
+
 // One ladder instead of two separate derate figures that read as a
 // contradiction ("5.3% less" next to "6.5% lost", measuring different
 // things: heatwave-vs-normal, and normal-vs-lab-rating). Three steps
@@ -679,22 +699,20 @@ function renderDerateLadder() {
     <div class="ladder-caption">Panels are rated at 25&deg;C in a lab and run hotter than that in full sun on any clear summer day, not only during heatwaves.</div>`;
 }
 
+// Multi-day window detail, heatwave only; the annual/coverage sentence
+// that used to sit here is gone, it duplicated renderLevelAnswer() above.
 function renderScenarioHeadline() {
-  const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
-
-  let html = "";
-  if (scenarioHeatwave) {
-    const c = generationData.citywide[scenarioKey()];
-    const windowLostKwh = c.window_total_rated_kwh - c.window_total_derated_kwh;
-    html += `Across the full 24&ndash;28 June heatwave window: ${formatNumber(c.window_total_derated_kwh)} kWh ` +
-      `generated, ${formatNumber(windowLostKwh)} kWh lost to derate, average daylight derate ` +
-      `${c.avg_daylight_derate_pct}%.`;
+  const headline = document.getElementById("scenario-headline");
+  if (!scenarioHeatwave) {
+    headline.innerHTML = "";
+    return;
   }
-  html += `<span class="headline-note">At ${cov.buildout_label} build-out, Duesseldorf's rooftops generate ` +
-    `${formatTWhFromGwh(cov.annual_gwh)} a year, ${cov.coverage_pct}% of the city's own ` +
-    `${formatTWhFromGwh(coverageData.city_consumption_gwh)} electricity use (${coverageData.city_consumption_year}).</span>`;
-
-  document.getElementById("scenario-headline").innerHTML = html;
+  const c = generationData.citywide[scenarioKey()];
+  const windowLostKwh = c.window_total_rated_kwh - c.window_total_derated_kwh;
+  headline.innerHTML = `Across the full 24&ndash;28 June heatwave window: ` +
+    `${formatNumber(c.window_total_derated_kwh / 1000)} MWh generated, ` +
+    `${formatNumber(windowLostKwh / 1000)} MWh lost to derate, average daylight derate ` +
+    `${c.avg_daylight_derate_pct}%.`;
 }
 
 function renderScenarioStats() {
@@ -770,6 +788,7 @@ function renderLossStrip() {
 
 function updateScenarioView() {
   if (!generationData || !coverageData || !batteryData) return;
+  renderLevelAnswer();
   renderDerateLadder();
   renderScenarioHeadline();
   renderLossStrip();
