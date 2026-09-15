@@ -222,22 +222,36 @@ header h1 {
   display: none;
 }
 
-.panel-answer {
-  font-size: 14px;
-  line-height: 1.55;
-  color: #1f2933;
+.level-answer {
   padding-bottom: 14px;
   margin-bottom: 14px;
   border-bottom: 1px solid #ececea;
 }
 
-.panel-answer p {
-  margin: 0 0 6px 0;
+.level-answer-heading {
+  margin: 8px 0 8px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2933;
 }
 
-.panel-answer strong {
+.level-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.level-stat-value {
+  font-size: 20px;
   font-weight: 700;
+  color: #1f2933;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.level-stat-label {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
 }
 
 footer {
@@ -520,38 +534,6 @@ footer a {
   padding-top: 6px;
 }
 
-.storage-popup h3 {
-  margin: 0 0 6px 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.storage-popup .planned-warning {
-  color: #a63603;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.storage-popup table {
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.storage-popup td {
-  padding: 2px 0;
-}
-
-.storage-popup td.label {
-  color: #6b7280;
-  padding-right: 14px;
-  white-space: nowrap;
-}
-
-.storage-popup td.value {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
 
 .scenario-panel {
   /* Lives inside .side-panel-content now, which already scrolls and pads. */
@@ -595,6 +577,7 @@ footer a {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-bottom: 12px;
 }
 
 .buildout-control-label {
@@ -630,30 +613,52 @@ footer a {
   color: #ffffff;
 }
 
-.big-numbers {
-  display: flex;
-  gap: 24px;
+.derate-ladder {
   padding: 4px 0 16px 0;
 }
 
-.big-number-label {
-  font-size: 11px;
-  color: #6b7280;
-  margin-bottom: 2px;
+.ladder-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
 }
 
-.big-number-value {
-  font-size: 22px;
+.ladder-table td {
+  padding: 4px 0;
+  vertical-align: baseline;
+}
+
+.ladder-label {
+  color: #6b7280;
+  white-space: nowrap;
+  padding-right: 12px;
+}
+
+.ladder-value {
   font-weight: 700;
   color: #1f2933;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
+  white-space: nowrap;
+  padding-right: 12px;
 }
 
-.big-number-delta {
-  font-size: 13px;
+.ladder-table tr:first-child .ladder-value {
   font-weight: 600;
+}
+
+.ladder-table td.ladder-note {
+  font-size: 11px;
   color: #a63603;
+  font-weight: 500;
+  padding-left: 10px;
+  white-space: nowrap;
+}
+
+.ladder-caption {
+  font-size: 11px;
+  color: #8a8f98;
+  margin-top: 8px;
+  line-height: 1.4;
 }
 
 .scenario-headline {
@@ -681,65 +686,39 @@ footer a {
   gap: 16px;
 }
 
-.scenario-chart-wrap {
+.loss-strip-wrap {
   min-width: 0;
 }
 
-.chart-caption {
+.loss-strip {
+  display: flex;
+  height: 40px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #ececea;
+}
+
+.loss-block {
+  flex: 1 1 0;
+  height: 100%;
+}
+
+.loss-strip-caption {
   font-size: 11px;
   color: #8a8f98;
   margin-top: 6px;
-  text-align: center;
+  line-height: 1.4;
 }
 
-.scenario-stats-wrap {
-  min-width: 0;
-}
-
-.scenario-stats {
+.storage-line {
   font-size: 12px;
   color: #1f2933;
+  line-height: 1.5;
+  padding-top: 4px;
 }
 
-.scenario-asymmetry-note {
-  font-size: 10px;
-  color: #8a8f98;
-  font-style: italic;
-  margin-top: 10px;
-  border-top: 1px solid #ececea;
-  padding-top: 8px;
-}
-
-.scenario-stats h3 {
-  margin: 0 0 6px 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: #1f2933;
-}
-
-.scenario-stats table {
-  border-collapse: collapse;
-  width: 100%;
-  margin-bottom: 12px;
-}
-
-.scenario-stats td {
-  padding: 2px 0;
-}
-
-.scenario-stats td.label {
-  color: #6b7280;
-}
-
-.scenario-stats td.value {
-  text-align: right;
+.storage-line strong {
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
 }
 
-.scenario-stats .stats-note {
-  font-size: 11px;
-  color: #8a8f98;
-  border-top: 1px solid #ececea;
-  padding-top: 8px;
-}

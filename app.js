@@ -81,17 +81,15 @@ document.getElementById("panel-toggle").addEventListener("click", () => {
   setSidePanelCollapsed(!sidePanelCollapsed);
 });
 
-// --- Panel's top line: the direct answer to the header's own subtitle,
-// precomputed (scripts/build_headline.py) from two figures already
-// verified elsewhere on the page, never calculated here. -----------------
-
-fetch("data/headline.json")
-  .then((res) => res.json())
-  .then((data) => {
-    document.getElementById("answer-full-pct").textContent = `${data.full_buildout_coverage_pct}%`;
-    document.getElementById("answer-heat-pct").textContent = `${data.heatwave_coverage_pct}%`;
-  })
-  .catch((err) => console.error(err));
+// The panel's top line used to be pinned to the 100% build-out case
+// always (data/headline.json), stated once and never updated, while
+// every other number in the panel followed whatever build-out level was
+// selected: two scenarios described in the same panel, which is why the
+// build-out control looked like it did nothing to the headline. Now the
+// build-out control is the panel's first control and every number below
+// it, including this heading, describes the selected level; see
+// renderLevelAnswer(). scripts/build_headline.py and data/headline.json
+// are no longer read by the page (see SCOPE.md v3.2).
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
@@ -141,6 +139,17 @@ function formatGW(kwp) {
 
 function formatTWh(mwh) {
   return `${Number(mwh / 1e6).toPrecision(2)} TWh`;
+}
+
+// District-level tier: MW capacity, GWh annual energy, 1 decimal place,
+// since district figures never reach a range where 2-significant-figure
+// rounding is needed the way the small city-level numbers do.
+function formatMW(kwp) {
+  return `${(kwp / 1000).toFixed(1)} MW`;
+}
+
+function formatGWhFromMwh(mwh) {
+  return `${(mwh / 1000).toFixed(1)} GWh`;
 }
 
 // Planar shoelace formula on raw lon/lat. Not a true geodesic area, but
@@ -223,16 +232,20 @@ function districtTooltipHtml(props) {
 // unit tier (GW capacity, TWh annual energy). The suitability-rule
 // sentence that used to sit under these moved into the (i) panel, it
 // never belonged in a stats strip.
+let cityTotalKwp = null;
+
 function updateCityStrip(features, properties) {
   const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
   const totalMwh = features.reduce((sum, f) => sum + f.properties.total_mwh, 0);
   const registeredKwp = properties.registered_pv_kwp || 0;
   const realizationPct = registeredKwp ? (registeredKwp / totalKwp) * 100 : 0;
+  cityTotalKwp = totalKwp;
 
   document.getElementById("stat-potential").textContent = formatGW(totalKwp);
   document.getElementById("stat-annual").textContent = formatTWh(totalMwh);
   document.getElementById("stat-built").textContent = formatGW(registeredKwp);
   document.getElementById("stat-realization").textContent = `${realizationPct.toFixed(1)}%`;
+  if (cityTotalKwp && coverageData) updateScenarioView();
 }
 
 // Plain language: no "specific yield", no "facets" on screen. Roof
@@ -274,9 +287,9 @@ function updateDrilldownPanel(stadtteilFeature) {
   currentDrilldownName = props.name;
   document.getElementById("drilldown-title").textContent = props.name;
   document.getElementById("drilldown-buildings").textContent = formatNumber(props.qualifying_buildings);
-  document.getElementById("drilldown-kwp").textContent = formatNumber(props.total_kwp) + " kWp";
-  document.getElementById("drilldown-mwh").textContent = formatNumber(props.total_mwh) + " MWh";
-  document.getElementById("drilldown-battery").textContent = formatNumber(props.battery_potential_kwh) + " kWh";
+  document.getElementById("drilldown-kwp").textContent = formatMW(props.total_kwp);
+  document.getElementById("drilldown-mwh").textContent = formatGWhFromMwh(props.total_mwh);
+  document.getElementById("drilldown-battery").textContent = formatNumber(props.battery_potential_kwh / 1000) + " MWh";
   document.getElementById("drilldown-status").textContent = "";
   document.getElementById("drilldown-panel").hidden = false;
   updatePostcodeFacts(props.name);
@@ -344,8 +357,11 @@ function updateFooter(properties) {
   const footer = document.getElementById("footer");
   if (properties.generated_at) {
     footer.innerHTML =
-      "Sources: Solarkataster NRW (opengeodata.nrw.de) and Open Data Duesseldorf, " +
-      "Stadtteilgrenzen Duesseldorf 2025. Data pulled " + properties.generated_at + ".";
+      "Sources: Solarkataster NRW (opengeodata.nrw.de), Open Data Duesseldorf, " +
+      "Stadtteilgrenzen Duesseldorf 2025, and Landeshauptstadt Duesseldorf, " +
+      '<a href="https://www.duesseldorf.de/fileadmin/Amt19/umweltamt/klimaschutz/pdf/klimaschutz/19_Klimafreundliches_Duesseldorf_2022_web_bf.pdf" target="_blank" rel="noopener">' +
+      "Energie- und Treibhausgasbilanz 2022</a> (electricity consumption, page 14). " +
+      "Data pulled " + properties.generated_at + ".";
   }
 }
 
@@ -469,32 +485,17 @@ function storageNrwStyle() {
   };
 }
 
-function storagePopupHtml(props) {
+// One interaction pattern for the whole page: storage dots hover like
+// districts do (name/summary line, detail line), not click-for-popup.
+// Reuses the same tooltip classes the district hover already uses.
+function storageTooltipHtml(props, extraLine) {
   const planned = props.status === "In Planung";
-  return `
-    <div class="storage-popup">
-      <h3>${formatKw(props.kw)} storage unit</h3>
-      ${planned ? '<div class="planned-warning">Not yet built, In Planung</div>' : ""}
-      <table>
-        <tr><td class="label">Capacity</td><td class="value">${formatKw(props.kw)}</td></tr>
-        <tr><td class="label">Chemistry</td><td class="value">${props.chemistry}</td></tr>
-        <tr><td class="label">Commissioning</td><td class="value">${props.commissioning}</td></tr>
-        <tr><td class="label">Status</td><td class="value">${props.status}</td></tr>
-      </table>
-    </div>`;
-}
-
-function storageNrwPopupHtml(props) {
-  return `
-    <div class="storage-popup">
-      <h3>${formatKw(props.kw)} storage unit</h3>
-      <table>
-        <tr><td class="label">Capacity</td><td class="value">${formatKw(props.kw)}</td></tr>
-        <tr><td class="label">Chemistry</td><td class="value">${props.chemistry}</td></tr>
-        <tr><td class="label">Landkreis</td><td class="value">${props.landkreis}</td></tr>
-        <tr><td class="label">Status</td><td class="value">${props.status}</td></tr>
-      </table>
-    </div>`;
+  const statusText = planned ? "Not yet built, In Planung" : props.status;
+  return (
+    `<div class="district-tooltip-name">${formatKw(props.kw)} storage unit</div>` +
+    `<div class="district-tooltip-row">${props.chemistry} &middot; ${props.commissioning}</div>` +
+    `<div class="district-tooltip-row">${statusText}${extraLine ? " &middot; " + extraLine : ""}</div>`
+  );
 }
 
 fetch("data/storage_duesseldorf.json")
@@ -503,7 +504,10 @@ fetch("data/storage_duesseldorf.json")
     storageDusLayer = L.geoJSON(data, {
       pointToLayer: (feature, latlng) => L.circleMarker(latlng, storageDusStyle(feature)),
       onEachFeature: (feature, layer) => {
-        layer.bindPopup(storagePopupHtml(feature.properties), { className: "storage-popup" });
+        layer.bindTooltip(storageTooltipHtml(feature.properties), {
+          sticky: true,
+          className: "stadtteil-tooltip",
+        });
       },
     });
     // Draw the largest (planned) unit last within the layer so it always
@@ -531,7 +535,10 @@ fetch("data/storage_nrw_large.json")
     storageNrwLayer = L.geoJSON(data, {
       pointToLayer: (feature, latlng) => L.circleMarker(latlng, storageNrwStyle(feature)),
       onEachFeature: (feature, layer) => {
-        layer.bindPopup(storageNrwPopupHtml(feature.properties), { className: "storage-popup" });
+        layer.bindTooltip(storageTooltipHtml(feature.properties, feature.properties.landkreis), {
+          sticky: true,
+          className: "stadtteil-tooltip",
+        });
       },
     });
 
@@ -577,8 +584,8 @@ function postcodeFactsHtml(stadtteilName) {
       <div class="postcode-row">
         <div class="postcode-row-head">${e.plz} <span class="postcode-share">(${e.share_pct.toFixed(0)}% of this neighbourhood's potential)</span></div>
         <table>
-          <tr><td class="label">Installed PV</td><td class="value">${formatNumber(e.registered_kwp)} kWp</td></tr>
-          <tr><td class="label">Postcode's own potential</td><td class="value">${formatNumber(e.own_total_kwp)} kWp</td></tr>
+          <tr><td class="label">Installed PV</td><td class="value">${formatMW(e.registered_kwp)}</td></tr>
+          <tr><td class="label">Postcode's own potential</td><td class="value">${formatMW(e.own_total_kwp)}</td></tr>
           <tr><td class="label">Postcode's realization</td><td class="value">${e.realization_pct.toFixed(1)}%</td></tr>
           <tr><td class="label">Registered storage</td><td class="value">${formatNumber(e.storage_units)} units, ${formatNumber(e.storage_kwh)} kWh</td></tr>
         </table>
@@ -594,15 +601,13 @@ function updatePostcodeFacts(stadtteilName) {
 
 // --- Scenario panel: heatwave derate, city coverage, battery case ----------
 //
-// All three datasets here are fully precomputed (scripts/build_generation.py,
-// build_coverage.py, build_battery.py); this file only ever selects a value
-// out of them for the current toggle state, never calculates one. See
-// SCOPE.md section 4.
+// Both datasets here are fully precomputed (scripts/build_generation.py,
+// build_coverage.py); this file only ever selects a value out of them for
+// the current toggle state, never calculates one. See SCOPE.md section 4.
+// (build_battery.py's output is no longer read here, see SCOPE.md v3.2.)
 
 let generationData = null;
 let coverageData = null;
-let batteryData = null;
-let scenarioChart = null;
 let scenarioHeatwave = false;
 let scenarioBuildoutPct = 11.6;
 let scenarioAcSurge = false;
@@ -614,8 +619,8 @@ let scenarioAcSurge = false;
 // measurement: German residential air conditioning ownership is low
 // enough that a domestic figure of this kind does not really exist to
 // cite. No demand curve is drawn, there is no hourly consumption dataset
-// for Duesseldorf; this single cited figure only shades and labels the
-// chart's existing evening window. It changes no generation number.
+// for Duesseldorf; this single cited figure is stated as text when the
+// toggle is on. It changes no generation number.
 const AC_SURGE_PCT = 25;
 
 // generation_scenarios.json's keys come from Python's f"{buildout_pct}"
@@ -644,182 +649,157 @@ function formatDate(iso) {
   return `${d} ${months[m - 1]} ${y}`;
 }
 
-// The payoff of the panel: normal day vs heatwave day, always both shown
-// together (not swapped by the heatwave toggle, which instead picks
-// which of the two the chart below plots hour by hour). City-level
-// figures, so MWh, the same tier the rest of this comparison already
-// uses (see build_generation.py's own headline print).
-function renderBigNumbers() {
-  const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
-  const heatC = generationData.citywide["heatwave_" + buildoutKeySuffix()];
-  const normalMwh = normalC.total_derated_kwh / 1000;
-  const heatMwh = heatC.total_derated_kwh / 1000;
-  const diffPct = (1 - heatMwh / normalMwh) * 100;
+// The panel's own top line, and it must describe the SELECTED build-out
+// level, not a fixed one, or the build-out control looks like it does
+// nothing. Both figures already exist in data/coverage.json per level,
+// this only ever picks one out, never computes a new one.
+function renderLevelAnswer() {
+  const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
+  const heading = scenarioBuildoutPct === 11.6
+    ? "At today's build-out"
+    : `At ${cov.buildout_label} of roofs covered`;
 
-  document.getElementById("big-numbers").innerHTML = `
-    <div class="big-number">
-      <div class="big-number-label">Normal day</div>
-      <div class="big-number-value">${formatNumber(normalMwh)} MWh</div>
+  document.getElementById("level-answer-heading").textContent = heading;
+  document.getElementById("level-stats").innerHTML = `
+    <div class="level-stat">
+      <div class="level-stat-value">${formatTWhFromGwh(cov.annual_gwh)}</div>
+      <div class="level-stat-label">a year</div>
     </div>
-    <div class="big-number">
-      <div class="big-number-label">Heatwave day</div>
-      <div class="big-number-value">${formatNumber(heatMwh)} MWh
-        <span class="big-number-delta">(${diffPct.toFixed(1)}% less)</span></div>
+    <div class="level-stat">
+      <div class="level-stat-value">${cov.coverage_pct}%</div>
+      <div class="level-stat-label">of the city's electricity</div>
     </div>`;
 }
 
-function renderScenarioHeadline() {
-  const key = scenarioKey();
-  const c = generationData.citywide[key];
-  const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
+// One ladder instead of two separate derate figures that read as a
+// contradiction ("5.3% less" next to "6.5% lost", measuring different
+// things: heatwave-vs-normal, and normal-vs-lab-rating). Three steps
+// down from the same lab rating: normal summer days already run hot in
+// full midday sun (panels are rated at 25 degC, not Duesseldorf ambient),
+// the heatwave subtracts again on top of that, it does not replace it.
+function renderDerateLadder() {
+  const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
+  const heatC = generationData.citywide["heatwave_" + buildoutKeySuffix()];
+  const labMwh = normalC.total_rated_kwh / 1000;
+  const normalMwh = normalC.total_derated_kwh / 1000;
+  const heatMwh = heatC.total_derated_kwh / 1000;
+  const normalLostPct = (1 - normalC.total_derated_kwh / normalC.total_rated_kwh) * 100;
+  const heatLostPct = (1 - heatMwh / normalMwh) * 100;
 
-  let html = "";
-  if (scenarioHeatwave) {
-    const windowLostKwh = c.window_total_rated_kwh - c.window_total_derated_kwh;
-    html += `Worst-hour derate <strong>${c.worst_hour_derate_pct}%</strong>. Across the full 24&ndash;28 June ` +
-      `window: ${formatNumber(c.window_total_derated_kwh)} kWh generated, ${formatNumber(windowLostKwh)} kWh ` +
-      `lost to derate, average daylight derate ${c.avg_daylight_derate_pct}%.`;
-  } else {
-    const lostPct = (1 - c.total_derated_kwh / c.total_rated_kwh) * 100;
-    html += `Rated ${formatNumber(c.total_rated_kwh)} kWh, ${lostPct.toFixed(1)}% lost to ordinary heat derate, ` +
-      `not a heatwave effect.`;
-  }
-  html += `<span class="headline-note">At ${cov.buildout_label} build-out, Duesseldorf's rooftops generate ` +
-    `${formatTWhFromGwh(cov.annual_gwh)} a year, ${cov.coverage_pct}% of the city's own ` +
-    `${formatTWhFromGwh(coverageData.city_consumption_gwh)} electricity use (${coverageData.city_consumption_year}).</span>`;
-
-  document.getElementById("scenario-headline").innerHTML = html;
-}
-
-function renderScenarioStats() {
-  const b = batteryData.citywide[scenarioKey()];
-  document.getElementById("scenario-stats").innerHTML = `
-    <h3>Battery case, 1.5 kWh/kWp</h3>
-    <table>
-      <tr><td class="label">Battery capacity</td><td class="value">${formatNumber(b.battery_kwh)} kWh</td></tr>
-      <tr><td class="label">Midday generation (11:00&ndash;15:59)</td><td class="value">${formatNumber(b.midday_kwh)} kWh</td></tr>
-      <tr><td class="label">Evening generation (18:00&ndash;21:59)</td><td class="value">${formatNumber(b.evening_kwh)} kWh</td></tr>
-      <tr><td class="label">Shiftable to evening</td><td class="value">${formatNumber(b.shiftable_kwh)} kWh</td></tr>
-      <tr><td class="label">Evening with battery</td><td class="value">${formatNumber(b.evening_with_battery_kwh)} kWh</td></tr>
+  document.getElementById("derate-ladder").innerHTML = `
+    <table class="ladder-table">
+      <tr>
+        <td class="ladder-label">Lab rating (25&deg;C)</td>
+        <td class="ladder-value">${formatNumber(labMwh)} MWh</td>
+        <td class="ladder-note"></td>
+      </tr>
+      <tr>
+        <td class="ladder-label">Normal summer day</td>
+        <td class="ladder-value">${formatNumber(normalMwh)} MWh</td>
+        <td class="ladder-note">${normalLostPct.toFixed(1)}% lost to everyday heat</td>
+      </tr>
+      <tr>
+        <td class="ladder-label">Heatwave day</td>
+        <td class="ladder-value">${formatNumber(heatMwh)} MWh</td>
+        <td class="ladder-note">${heatLostPct.toFixed(1)}% lost again to the heatwave</td>
+      </tr>
     </table>
-    <div class="stats-note">A battery this size could shift ${b.shiftable_pct_of_midday}% of midday's generation,
-    raising evening generation to ${b.evening_multiple}&times; what those hours produce on their own. Capacity limit
-    only, no round-trip loss modelled.</div>`;
+    <div class="ladder-caption">Panels are rated at 25&deg;C in a lab and run hotter than that in full sun on any clear summer day, not only during heatwaves.</div>`;
 }
 
-// Shades the chart's evening window always; when the AC-surge toggle is on,
-// darkens that shading and labels it with the cited France-analogue figure.
-// No demand curve is drawn, this plugin only annotates the existing
-// generation lines, it never adds a dataset of its own.
-function eveningShadePlugin() {
-  return {
-    id: "eveningShade",
-    beforeDatasetsDraw(chart) {
-      const { ctx, chartArea, scales } = chart;
-      if (!chartArea) return;
-      const xScale = scales.x;
-      const eveningHours = batteryData.evening_hours;
-      // A plain number passed to getPixelForValue is used directly as the
-      // category's index and maps to its true position regardless of
-      // autoSkip, which only hides tick LABELS, not the underlying scale.
-      // getPixelForTick indexes into the post-autoSkip visible-tick array
-      // instead, so it silently mispositions the shading once labels skip.
-      const hourWidth = xScale.getPixelForValue(1) - xScale.getPixelForValue(0);
-      const xStart = xScale.getPixelForValue(eveningHours[0]) - hourWidth / 2;
-      const xEnd = xScale.getPixelForValue(eveningHours[eveningHours.length - 1]) + hourWidth / 2;
-      ctx.save();
-      ctx.fillStyle = scenarioAcSurge ? "rgba(198, 40, 40, 0.16)" : "rgba(166, 54, 3, 0.08)";
-      ctx.fillRect(xStart, chartArea.top, xEnd - xStart, chartArea.bottom - chartArea.top);
-      if (scenarioAcSurge) {
-        const midX = (xStart + xEnd) / 2;
-        ctx.fillStyle = "#a61b1b";
-        ctx.textAlign = "center";
-        ctx.font = "600 11px -apple-system, BlinkMacSystemFont, sans-serif";
-        ctx.fillText(`+${AC_SURGE_PCT}% evening demand`, midX, chartArea.top + 14);
-        ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
-        ctx.fillText("(France analogue, IEA)", midX, chartArea.top + 27);
-      }
-      ctx.restore();
-    },
-  };
-}
-
-function renderScenarioChart() {
-  const c = generationData.citywide[scenarioKey()];
-  const labels = c.hourly_rated_kwh.map((_, h) => String(h).padStart(2, "0") + ":00");
-
-  const data = {
-    labels,
-    datasets: [
-      {
-        label: "Rated",
-        data: c.hourly_rated_kwh,
-        borderColor: "#c9c3b6",
-        backgroundColor: "transparent",
-        borderDash: [4, 3],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        tension: 0.25,
-      },
-      {
-        label: "Derated",
-        data: c.hourly_derated_kwh,
-        borderColor: "#a63603",
-        backgroundColor: "rgba(166, 54, 3, 0.1)",
-        fill: true,
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.25,
-      },
-    ],
-  };
-
-  if (scenarioChart) {
-    scenarioChart.data = data;
-    scenarioChart.update();
+// Multi-day window detail, heatwave only; the annual/coverage sentence
+// that used to sit here is gone, it duplicated renderLevelAnswer() above.
+function renderScenarioHeadline() {
+  const headline = document.getElementById("scenario-headline");
+  if (!scenarioHeatwave) {
+    headline.innerHTML = "";
     return;
   }
-
-  const ctx = document.getElementById("scenario-chart").getContext("2d");
-  scenarioChart = new Chart(ctx, {
-    type: "line",
-    data,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      // The chart only ever plots one day, 24 points, never the full
-      // year or all 50 districts, so there is no data-volume cost here.
-      // A snappier transition (default is 1000ms) is what actually makes
-      // toggling scenarios feel instant rather than laggy.
-      animation: { duration: 200 },
-      interaction: { mode: "index", intersect: false },
-      scales: {
-        x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
-        y: { beginAtZero: true, ticks: { callback: (v) => formatNumber(v) } },
-      },
-      plugins: {
-        legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 } } },
-        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} kWh` } },
-      },
-    },
-    plugins: [eveningShadePlugin()],
-  });
+  const c = generationData.citywide[scenarioKey()];
+  const windowLostKwh = c.window_total_rated_kwh - c.window_total_derated_kwh;
+  headline.innerHTML = `Across the full 24&ndash;28 June heatwave window: ` +
+    `${formatNumber(c.window_total_derated_kwh / 1000)} MWh generated, ` +
+    `${formatNumber(windowLostKwh / 1000)} MWh lost to derate, average daylight derate ` +
+    `${c.avg_daylight_derate_pct}%.`;
 }
 
-function renderChartCaption() {
-  const caption = document.getElementById("chart-caption");
-  caption.textContent = scenarioAcSurge
-    ? "Hourly generation, rated (undegraded) vs derated. Evening (18:00–21:59) shaded, labelled with the cited AC-surge figure. That figure describes demand; the generation lines above are unchanged by it."
-    : "Hourly generation, rated (undegraded) vs derated. Evening (18:00–21:59) shaded.";
+// Storage cut down to one line (UX pass round two, commit 4): the
+// battery-dispatch table (shiftable kWh, evening multiples) is gone,
+// see SCOPE.md v3.2. No ratios, no hour windows, no dispatch story, just
+// the capacity these rooftops would justify at the selected build-out
+// level, 1.5 kWh per kW of solar (HTW Berlin upper bound, SCOPE.md
+// section 3), a fact stated, not an argument made.
+const STORAGE_KWH_PER_KW = 1.5;
+
+function renderStorageLine() {
+  const capacityKwh = cityTotalKwp * (scenarioBuildoutPct / 100) * STORAGE_KWH_PER_KW;
+  document.getElementById("storage-line").innerHTML =
+    `These rooftops would justify about <strong>${formatNumber(capacityKwh / 1000)} MWh</strong> of battery ` +
+    `storage, at 1.5 kWh per kW of solar (HTW Berlin).`;
+}
+
+// The hourly loss strip replaces the rated-vs-derated line chart
+// (removed v3.1). Diagnosis: the chart was correct, 24 points, a real
+// zero-based axis, not "growing" or "exponential". The problem was
+// scale, a 5.3% heatwave-vs-normal difference is invisible next to a
+// ~93,000 kWh axis, so it rendered as two hairline-apart curves. This
+// strip plots the derate percentage itself, hour by hour, which is the
+// shape that actually needed to be legible: the loss concentrates in
+// the hottest hours, it is not spread evenly across the day.
+//
+// Per-hour loss = 1 - derated/rated, from the same two precomputed
+// arrays the old chart plotted (generation_scenarios.json). This is a
+// display ratio from two already-precomputed numbers, the same pattern
+// already used throughout this file (renderDerateLadder's lost-percent figures,
+// updateCityStrip's realizationPct), not a new calculation of anything
+// the Python side did not already model.
+const LOSS_STRIP_COLOR_LOW = [254, 237, 222]; // #feedde, no loss
+const LOSS_STRIP_COLOR_HIGH = [166, 54, 3]; // #a63603, worst hour of the day
+
+function lossStripColor(fraction) {
+  const [r0, g0, b0] = LOSS_STRIP_COLOR_LOW;
+  const [r1, g1, b1] = LOSS_STRIP_COLOR_HIGH;
+  const r = Math.round(r0 + (r1 - r0) * fraction);
+  const g = Math.round(g0 + (g1 - g0) * fraction);
+  const b = Math.round(b0 + (b1 - b0) * fraction);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function renderLossStrip() {
+  const c = generationData.citywide[scenarioKey()];
+  const hourlyLossPct = c.hourly_rated_kwh.map((rated, h) => {
+    const derated = c.hourly_derated_kwh[h];
+    return rated > 0 ? (1 - derated / rated) * 100 : 0;
+  });
+
+  const maxLossPct = Math.max(...hourlyLossPct);
+  const worstHour = hourlyLossPct.indexOf(maxLossPct);
+
+  const strip = document.getElementById("loss-strip");
+  strip.innerHTML = hourlyLossPct
+    .map((pct, h) => {
+      const fraction = maxLossPct > 0 ? pct / maxLossPct : 0;
+      const label = `${String(h).padStart(2, "0")}:00, ${pct.toFixed(1)}% lost to heat`;
+      return `<div class="loss-block" style="background:${lossStripColor(fraction)}" title="${label}"></div>`;
+    })
+    .join("");
+
+  let caption = `Loss by hour, relative to the day's peak. Worst: ` +
+    `${maxLossPct.toFixed(1)}% at ${String(worstHour).padStart(2, "0")}:00.`;
+  if (scenarioAcSurge) {
+    caption += ` Cooling demand runs an estimated +${AC_SURGE_PCT}% in the evening (France analogue, see (i)); ` +
+      `this does not change the generation loss shown above.`;
+  }
+  document.getElementById("loss-strip-caption").textContent = caption;
 }
 
 function updateScenarioView() {
-  if (!generationData || !coverageData || !batteryData) return;
-  renderBigNumbers();
+  if (!generationData || !coverageData || cityTotalKwp === null) return;
+  renderLevelAnswer();
+  renderDerateLadder();
   renderScenarioHeadline();
-  renderScenarioChart();
-  renderScenarioStats();
-  renderChartCaption();
+  renderLossStrip();
+  renderStorageLine();
 }
 
 document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
@@ -843,12 +823,10 @@ document.querySelectorAll(".buildout-step").forEach((btn) => {
 Promise.all([
   fetch("data/generation_scenarios.json").then((res) => res.json()),
   fetch("data/coverage.json").then((res) => res.json()),
-  fetch("data/battery_case.json").then((res) => res.json()),
 ])
-  .then(([gen, cov, batt]) => {
+  .then(([gen, cov]) => {
     generationData = gen;
     coverageData = cov;
-    batteryData = batt;
     updateScenarioView();
   })
   .catch((err) => {

@@ -1,9 +1,9 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v3.0
+# Duesseldorf Solar + Storage Potential Map · Scope v3.2
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-15 (v3.0, see Changelog)
+**Amended:** 2026-09-15 (v3.2, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
@@ -11,7 +11,23 @@ Read this file at the start of every session, before anything else. If the repo 
 
 ## 0. Changelog
 
-**v3.0 (2026-09-15):** a UX pass, six commits, presentation only. No new data, no new analysis, no scope change; every number on the page already existed, this changed how it reads.
+**v3.2 (2026-09-15):** all five commits from v3.1's plan shipped and tested; this entry confirms what actually landed, the plan below is the historical record of intent, not a duplicate of it.
+
+Commit 1 (chart to loss strip), commit 2 (the derate ladder), and commit 4 (storage to one line, dots hover like districts) landed as planned below. Commit 4 additionally found and fixed a real, unplanned bug while checking the honest-line paragraph's figures as asked: neither cited storage total (6,660 on the page, 6,672 in SCOPE.md's own "superseded" note) was actually current, the true figure was a third number, 7,025 units, 52,230 kW, because `build_storage.py`'s citywide_note hardcoded its coordinate-coverage clause as a literal string instead of computing it, so a corrected total could never have produced a correct note. Fixed and re-run; section 3's carry-over table now reads 7,025/28.
+
+Commit 3 (build-out becomes the subject) turned out to require more than presentation: the panel's top line was pinned to the 100% case always while every other number followed the selected level, so it now describes the selected level throughout, the build-out control moved to be the panel's first control, and `data/headline.json`/`build_headline.py` (added for the fixed top line) are no longer read, superseded by reading `data/coverage.json` per level directly.
+
+Commit 5 (units, the (i)) enforced the district-level MW/GWh/MWh tier on the drill-down panel and postcode breakdown, not just the scenario panel; Bilk's annual yield was a 5-digit MWh figure before this, a real violation of "never more than four digits" that the original unit-tier work (an earlier UX pass) had missed.
+
+See section 4 for the current, specific state of every subsection this touched.
+
+Before shipping any of it: verified the "3,049 GWh" 2022 electricity consumption figure against the actual source PDF (`pdftotext` on the real document, not recalled from memory), page 14, table "Energieverbrauch in GWh", row "Strom", GHDI 1,599 + KE 107 + HH 1,171 + V 172 = 3,049, the report's own printed total, not scaled, not estimated, not a national or NRW figure. The footer never cited this source; it does now (section 4, this changelog entry's own commit 5).
+
+**The subject of this project changes.** It was "how much rooftop solar could this city have, and how much battery storage would that call for": a potential-plus-storage-sizing pitch. It is now "how much rooftop solar could this city have, and what does heat and cooling demand do to that": a potential-plus-heat pitch. Storage was never wrong, exactly, but the battery-dispatch table (capacity, midday generation, evening generation, shiftable kWh, evening-with-battery, the 70.1% and 4.25x findings from the earlier scenario-panel batch) asked a visitor to absorb a second, separate quantitative argument (how much of a day's generation a 1.5 kWh/kWp battery could shift) on top of the heat argument the page already makes, and diluted both. Storage survives as one line in the panel, the capacity these rooftops would justify at 1.5 kWh/kWp (HTW Berlin), and as the existing large-unit dots on the map. The line and the dots are a fact stated, not an argument made.
+
+**What was cut, specifically:** `scripts/build_battery.py` and `data/battery_case.json` are no longer read by the page (script kept in the repo; a future scope could resurrect it, this is a presentation decision about what the page argues, not a claim the underlying computation was wrong). The battery-case table, its stats-note sentence, and the "midday hours"/"evening hours" framing are removed from `app.js`/`index.html`/`style.css`. Section 4's "Battery case: midday surplus, evening gap" subsection below is replaced accordingly.
+
+Also cut: the rated-vs-derated line chart (Chart.js). Diagnosis, so this is not repeated: the chart was correct, 24 points, a real zero-based axis, not the reported "growing/exponential" shape. The actual problem was scale: a 5.3% heatwave-vs-normal difference is invisible on a 0-to-~93,000-kWh axis, rendering as two hairline-apart curves. Replaced with an hourly loss strip (commit 1 below) that plots the derate percentage directly instead of two near-identical absolute curves, which is the shape that actually needed to be legible.
 
 The header is four labelled figures in the city-level unit tier (1.4 GW possible, 1.1 TWh a year, 0.16 GW built, 11.6% used) instead of a run-on sentence mixing kWp and MWh, under a subtitle that states the page's actual question. An (i) button opens a modal holding what used to clutter the header: what the page models, the suitability rule, data sources, and the cooling-demand France analogue with its caveat. Units are now tiered and enforced: city level GW/TWh, district level MW/GWh, building level kW/kWh, never mixed on one screen.
 
@@ -55,11 +71,11 @@ Two options were considered. Apportion each PLZ's registered PV across its overl
 
 ## 1. What this is
 
-**One web page. One map. A few toggles.** A visitor opens it, sees Duesseldorf, and can answer one question: *how much rooftop solar could this city have, and how much battery storage would that call for?*
+**One web page. One map. A few toggles.** A visitor opens it, sees Duesseldorf, and can answer one question: *how much rooftop solar could this city have, and what does heat and cooling demand do to that potential?* (Changed in v3.1; was "...and how much battery storage would that call for", see changelog. Storage is now a fact stated, one line and dots on the map, not the second argument the page makes.)
 
 It is a portfolio piece for hiring managers. It has to load fast on a laptop, look competent, and every number on it has to trace to a named public source. It is not a research paper, not a planning tool, and not a simulation.
 
-**What the site actually models:** a scenario in which every suitable rooftop in Duesseldorf carries solar feeding storage, then the heatwave PV derate and the AC demand surge are applied on top of that built-out scenario. This scenario runs on the Solarkataster and ERA5 alone and needs no registry data at all. Existing installations, from MaStR, are shown alongside as context, to compute a realization rate, never as an input to the potential model itself.
+**What the site actually models:** a scenario in which every suitable rooftop in Duesseldorf carries solar, then the heatwave PV derate and the cooling demand surge are applied on top of that built-out scenario. This scenario runs on the Solarkataster and ERA5 alone and needs no registry data at all. Existing installations, from MaStR, are shown alongside as context, to compute a realization rate, never as an input to the potential model itself.
 
 ## 2. The page
 
@@ -73,27 +89,31 @@ It is a portfolio piece for hiring managers. It has to load fast on a laptop, lo
 |  possible    per year     built        used                     |
 +---------------------------------------+-------------------------+
 |                                        | [Hide]                  |
-|  LAYERS                                |                         |
-|  [ ] Large storage, Duesseldorf        | At full build-out,     |
-|  [ ] Large storage, NRW above 1 MW     | rooftops would cover   |
-|                                        | X% of the city's       |
-|         THE MAP                       | electricity. On the    |
-|    (Stadtteil shapes, roof potential; | hottest days, Y%.      |
+|  BESS OVERVIEW                        | Build-out: [Today] [30%]|
+|  [ ] Large storage, Duesseldorf        |   [50%] [100%]         |
+|  [ ] Large storage, NRW above 1 MW     |                         |
+|  (honest-line paragraph: unit count,  | At today's build-out    |
+|   combined capacity, why only 6 dots) | 0.13 TWh a year  4.2%   |
+|                                        |                         |
+|         THE MAP                       | Normal day vs heatwave  |
+|    (Stadtteil shapes, roof potential; | [ ] Heatwave [ ] Cooling|
 |     hover for name, possible MW,      |                         |
-|     qualifying buildings, no legend;  | Normal day vs heatwave  |
-|     click one to drill into its       | [ ] Heatwave  [ ] Cool |
-|     buildings, coloured by roof       | Build-out: Today/30/   |
-|     quality. Its panel then shows     |    50/100%              |
-|     the postcodes it sits in, each    |                         |
-|     with its own exact PV,            | Normal day: X MWh      |
-|     realization, and storage facts.   | Heatwave day: Y MWh    |
-|     Never changes with the panel's    |   (Z% less)             |
-|     toggles, it stays a map.)         | [ hourly chart ]        |
-|                                        | Battery case, stats     |
+|     qualifying buildings, no legend;  | Lab rating      648 MWh |
+|     click one to drill into its       | Normal day      606 MWh|
+|     buildings, coloured by roof       |   6.5% lost to everyday |
+|     quality. Its panel then shows     | Heatwave day    574 MWh|
+|     the postcodes it sits in, each    |   5.3% lost again       |
+|     with its own exact PV,            |                         |
+|     realization, and storage facts.   | [ hourly loss strip ]   |
+|     Large-storage dots hover like     | worst: 9.4% at 14:00    |
+|     districts do. Never changes with  |                         |
+|     the panel's toggles, it stays     | These roofs would       |
+|     a map.)                           | justify ~242 MWh of     |
+|                                        | storage (HTW Berlin)    |
 +---------------------------------------+-------------------------+
 ```
 
-Map about 70%, panel about 30%, open by default; a "Hide" toggle collapses it to a narrow tab rather than hiding its content behind a control someone has to discover first. Clicking a Stadtteil opens a panel with that neighbourhood's own numbers and the postcodes inside it. The scenario panel's toggles change the panel's own numbers and chart, never the map, which stays roof potential regardless of any toggle state. Nothing navigates away.
+Map about 70%, panel about 30%, open by default; a "Hide" toggle collapses it to a narrow tab rather than hiding its content behind a control someone has to discover first. The build-out control is the panel's first control, and every number below it, including the "At [level]" heading, describes the selected level, never a fixed one. Clicking a Stadtteil opens a panel with that neighbourhood's own numbers and the postcodes inside it. The scenario panel's toggles change the panel's own numbers, never the map, which stays roof potential regardless of any toggle state. Nothing navigates away.
 
 ## 3. The data model: one geography, postcode facts in the panel
 
@@ -108,7 +128,7 @@ Postcode (PLZ) still exists in the data, because it is the only geography MaStR'
 **The check that forced postcode onto MaStR data in the first place** (MaStR pull, local database dated 2026-07-10):
 
 - PV coordinate coverage by size, Duesseldorf: <10 kWp 0% (8,969 units), 10-30 kWp 0% (2,425 units), 30-100 kWp 85.8% (295 units), 100 kWp-1 MWp 100% (107 units), >=1 MWp 100% (8 units). Overall 368 of 11,804 units, 3.1%.
-- Storage coordinate coverage, Duesseldorf: 28 of 6,660 units, 0.4%, and the pattern is the same, coordinates exist almost only above 100 kW.
+- Storage coordinate coverage, Duesseldorf: 28 of 7,025 units, 0.4%, and the pattern is the same, coordinates exist almost only above 100 kW.
 - The Solarkataster itself carries no field indicating an existing installation anywhere. Checked the full attribute dictionary (`Metadaten_PV_Dach_2024_09_opendata.xlsx`): every field describes roof geometry, orientation, irradiance, or a theoretical yield at a fixed 21.7% efficiency. It is a pure potential cadastre. Realization can only ever come from joining against MaStR, never from the cadastre alone.
 - **Confirmed empirically, not just from the schema:** spatial-joined the 368 located Duesseldorf PV units against the nearest Solarkataster facet centroid. 361 of 368 matched within 100 m, median distance 6.7 m. Matched facets carry entirely normal `kw` and `kwh_kwp` values, including facets reporting under 1 kWp of theoretical potential at addresses where hundreds of kWp are actually installed. The cadastre is gross, not net: existing installations never reduce a roof's reported potential.
 
@@ -198,7 +218,7 @@ Source: [HTW Berlin, Empfehlungen zur Auslegung von Solarstromspeichern](https:/
 
 ### Existing BESS: postcode facts in the panel, large units the only dots on the map
 
-Only 28 of 6,660 Duesseldorf battery units carry usable coordinates. v2.1 and v2.2 planned to show the rest **aggregated to their postcode as map clusters**; superseded by v2.3. A cluster is still one geography competing with Stadtteil on the same map, the exact problem this version removes. The fix is the same one applied to PV: registered storage unit counts and kWh are **postcode facts inside the Stadtteil panel** (see above), never their own map layer, never apportioned to a neighbourhood.
+Only 28 of 7,025 Duesseldorf battery units carry usable coordinates. v2.1 and v2.2 planned to show the rest **aggregated to their postcode as map clusters**; superseded by v2.3. A cluster is still one geography competing with Stadtteil on the same map, the exact problem this version removes. The fix is the same one applied to PV: registered storage unit counts and kWh are **postcode facts inside the Stadtteil panel** (see above), never their own map layer, never apportioned to a neighbourhood.
 
 **Storage focus stays on larger units.** Home batteries are context, not the interesting part of the story. Checked: Duesseldorf has exactly 6 storage units above 100 kW, and all 6 carry real coordinates (coordinate coverage is not the problem at this size). Only 1 exceeds 1 MW, a 10 MW unit at PLZ 40549, and its `EinheitBetriebsstatus` is "In Planung", not yet built. Duesseldorf's own grid-scale battery fleet is, honestly, not built yet. These 6 units are shown as exact dots at their real coordinates, unchanged by this revision, because they have real coordinates and do not need postcode aggregation at all.
 
@@ -245,7 +265,7 @@ Peak single-hour GTI in the window: 934.5 W/m² at 14:00 on 25 June.
 | GTI total | 6,685 Wh/m² | 6,724 Wh/m² (+0.6%) |
 | Daily max temp | 38.1 degC | 24.2 degC (-13.9 degC) |
 
-The page then says something concrete, built from these two days and the multi-day window, not a single cherry-picked hour: *"During the record heat of 24 to 28 June 2026, these rooftops would have produced X% less than a matched normal day."*
+The page states this as a three-step ladder now, not a single sentence (UX pass round two, commit 2): lab rating (25 degC, undegraded) down to a normal summer day (ordinary heat derate) down to the heatwave day (the heatwave's own derate on top of that). Two derate figures used to sit side by side reading as a contradiction, "5.3% less" (heatwave vs normal) next to "6.5% lost" (normal vs lab rating), measuring different things; the ladder states both as one descent from the same starting point instead.
 
 Sources: [2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_heatwaves); [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) (ERA5) for both the heatwave window and the matched normal day.
 
@@ -257,11 +277,13 @@ Sources: [2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_h
 | Derated | 606,166 kWh | 574,275 kWh |
 | Lost to derate | 6.45% | 10.82% |
 
-**Headline: 574,275 kWh on the heatwave worst day against 606,166 kWh on the matched normal day, 31,891 kWh less, 5.3%.** That 5.3% is smaller than the worst-hour derate (14.18%) because derate only bites during the hottest, sunniest hours; mornings and evenings barely notice. It is also smaller than the raw heat-versus-normal derate gap (10.82% minus 6.45% = 4.37 points) because the two days do not start from identical sun either, the GTI match is close (+0.6%) but not exact.
+**Headline (ladder, 574 MWh vs 606 MWh, 5.3% less):** that 5.3% is smaller than the worst-hour derate (14.18%) because derate only bites during the hottest, sunniest hours; mornings and evenings barely notice. It is also smaller than the raw heat-versus-normal derate gap (10.82% minus 6.45% = 4.37 points) because the two days do not start from identical sun either, the GTI match is close (+0.6%) but not exact.
 
-**Worth stating on the page, since it is genuinely surprising:** even the matched *normal* day loses 6.45% to derate. That is not a bug. Panels run well above air temperature in full midday sun on any clear summer day (the NOCT model adds roughly 28 degC to a 900 W/m² midday reading), so some derate is ordinary, not a heatwave-specific effect. What the heatwave actually adds is the difference between 6.45% and 10.82%, not the full 10.82%.
+**Worth stating on the page, since it is genuinely surprising:** even the matched *normal* day loses 6.45% to derate. That is not a bug. Panels run well above air temperature in full midday sun on any clear summer day (the NOCT model adds roughly 28 degC to a 900 W/m² midday reading), so some derate is ordinary, not a heatwave-specific effect. What the heatwave actually adds is the difference between 6.45% and 10.82%, not the full 10.82%. This is exactly what the ladder's own caption states plainly now: panels are rated at 25 degC and run hotter than that on every sunny day, not only during heatwaves.
 
-**Across the full 24-28 June window**, not just the worst day: 3,073,892 kWh derated total, average daylight derate 6.56%, 345,203 kWh lost to derate over the five days. The worst single hour anywhere in the window reached 14.18% derate.
+**Across the full 24-28 June window**, not just the worst day: 3,073,892 kWh derated total, average daylight derate 6.56%, 345,203 kWh lost to derate over the five days (shown in the panel as MWh, the day-figure tier, commit 5). The worst single hour anywhere in the window reached 14.18% derate.
+
+**The hourly loss strip** (UX pass round two, commit 1, replaces an earlier rated-vs-derated line chart): 24 blocks, one per hour, shaded by that hour's own derate percentage relative to the day's worst hour, worst hour labelled underneath ("worst: 9.4% at 14:00" for the normal day at today's build-out). Diagnosis for the record, so the chart's removal is not repeated as a mistake: the chart was not broken, it plotted 24 points correctly on a real zero-based axis. The problem was scale, a roughly 5% difference is invisible next to a ~93,000 kWh axis at full build-out, so it rendered as two hairline-apart curves. The strip plots the derate percentage directly instead, computed client-side as `1 - derated/rated` per hour from the same two precomputed arrays the chart used, a display ratio from already-precomputed numbers, the same pattern already used elsewhere in `app.js` (realization percentages, coverage percentages), not a new calculation of anything the Python side does not already model.
 
 ### Toggle 2 · Cooling demand surge
 
@@ -271,15 +293,17 @@ Evening demand rises during heat. There is no Duesseldorf consumption dataset, a
 
 Labelled on the page as a **France analogue**, never as a Duesseldorf measurement. No demand curve is drawn; there is no hourly demand data for Duesseldorf, and inventing one is out of scope. Instead the toggle shades the evening peak window on the generation chart and labels it with the cited figure.
 
-**The resulting asymmetry is stated on the page, not hidden:** supply is modelled hour by hour from ERA5, a real measured input. Demand is a single cited figure applied to a window, because anything finer would be invented rather than sourced.
+**The resulting asymmetry is stated on the page, not hidden:** supply is modelled hour by hour from ERA5, a real measured input. Demand is a single cited figure applied to a window, because anything finer would be invented rather than sourced. This note now lives in the (i) panel's cooling-demand section (UX pass round two, commit 5), next to the France-analogue caveat it explains, not as a standalone note in the panel body.
 
-**Wired into the page** (`app.js`): a checkbox next to the heatwave toggle. On, it darkens the chart's existing evening shading and draws the cited figure directly on the chart (`+25% evening demand`, `France analogue, IEA`), and the chart caption and the scenario-stats panel's asymmetry note update to match. It touches no generation number and no precomputed JSON; `data/generation_scenarios.json` stays 8 combinations, not 16, see the architecture note below.
+**Wired into the page** (`app.js`): a checkbox next to the heatwave toggle. On, it appends a line under the hourly loss strip stating the cited figure ("Cooling demand runs an estimated +25% in the evening (France analogue, see (i))"), explicitly noting it does not change the generation loss shown above. Replaces the earlier chart-shading treatment now that the chart itself is gone (commit 1). It touches no generation number and no precomputed JSON; `data/generation_scenarios.json` stays 8 combinations, not 16, see the architecture note below.
 
-### Control 3 · Built out at Today / 30% / 50% / 100%
+### Control 3 · Built out at Today / 30% / 50% / 100% (the panel's first control on screen, since commit 3 below)
 
 Labelled "Today" on the page, not "12%": the exact rate is redundant with the header strip's own 11.6% figure, and "Today" is the thing a visitor actually needs to know before comparing it against the other three steps. A title attribute still gives the precise rate on hover.
 
 Steps, not a free slider. Shows what the city's generation and battery potential look like at each level of rooftop build-out. 12% is today's measured realization rate (11.6%, rounded), recomputed with north-facing pitched facets excluded, see section 3; this replaces v2.1's 10% (9.6% rounded, before the exclusion) and v2's 14% (the per-facet figure), both now superseded. **100% is required, not optional:** the whole thought experiment this project is built around is "every suitable rooftop carries solar," and a built-out control that stops short of that number never actually answers the question the page opens with.
+
+**Build-out is the subject of the panel now, not a fourth toggle buried among the others (UX pass round two, commit 3).** It moved to the first control, above everything else, and a heading names the selected level ("At today's build-out", "At 30% of roofs covered", ...) directly above that level's own numbers. Every number in the panel, including this heading, describes the selected level; nothing is pinned to a fixed level any more. Before this fix, the panel's own top line was permanently pinned to the 100% case ("at full build-out, 36.6%") while every other number followed the selected level, two scenarios described in one panel, which was why the build-out control looked like it did nothing to the headline.
 
 **City coverage at each level** (`scripts/build_coverage.py`; annual generation at 100% build-out is the Solarkataster cadastre's own total, `data/stadtteile.json`, other levels scale it uniformly; against the city's own annual electricity consumption, 3,049 GWh in 2022, Duesseldorf's Energie- und Treibhausgasbilanz 2022, see section 3):
 
@@ -290,27 +314,13 @@ Steps, not a free slider. Shows what the city's generation and battery potential
 | 50% | 557.9 GWh | 18.3% |
 | 100% | 1,115.8 GWh | 36.6% |
 
-**The most important sentence on the site:** Duesseldorf's rooftops could generate 1,116 GWh a year, the city uses 3,049 GWh (2022), so at full build-out rooftop solar alone would cover 37% of it.
+**The most important sentence on the site:** Duesseldorf's rooftops could generate 1,116 GWh a year, the city uses 3,049 GWh (2022), so at full build-out rooftop solar alone would cover 37% of it. This is now stated as the "At 100% of roofs covered" heading's own two numbers (1.1 TWh a year, 36.6%, the city-level unit tier, commit 5) rather than a fixed, separate sentence: select 100% to see it.
 
-### Battery case: midday surplus, evening gap
+### Storage: one line, not an argument
 
-Generation peaks around midday and is close to zero by evening; consumption does not follow that shape. No demand curve is used here either, this is a generation-side accounting only. Storage sized at 1.5 kWh per kWp (the HTW Berlin upper bound, section 3) is shown against both the matched normal day and the heatwave day: how much of the day's midday generation a battery that size could shift into the evening.
+Cut in v3.1 (see changelog): the midday-surplus-to-evening-gap battery-dispatch table (battery capacity, midday generation, evening generation, shiftable kWh, evening-with-battery, the 70.1%-at-every-build-out-level and 4.25x/6.04x findings). None of it was wrong, `scripts/build_battery.py` and `data/battery_case.json` still exist and still compute it correctly, it is simply no longer part of what this page argues, see section 1.
 
-**Hour windows** (`scripts/build_battery.py`, `common.py`), a stated modelling convention, not a sourced figure: midday is 11:00-15:59, each day's generation plateau; evening is 18:00-21:59, the same window the AC-surge toggle shades, chosen to line up with the IEA France-analogue evening peak already cited above.
-
-**Computed, citywide, at today's 12% build-out:**
-
-| | Normal day (25 Aug 2025) | Heatwave worst day (26 Jun 2026) |
-|---|---|---|
-| Midday generation | 345,791 kWh | 346,544 kWh |
-| Evening generation | 74,532 kWh | 48,105 kWh |
-| Battery capacity (1.5 kWh/kWp) | 242,295 kWh | 242,295 kWh |
-| Shiftable to evening | 242,295 kWh (70% of midday) | 242,295 kWh (70% of midday) |
-| Evening with battery | 316,827 kWh (4.25x) | 290,400 kWh (6.04x) |
-
-**A robust finding, not just a today's-build-out number:** the shiftable share of midday generation comes out to 70.1% at every build-out level, 12%, 30%, 50%, and 100% alike. Battery capacity and midday generation both scale with build-out in exactly the same proportion (both track installed kWp linearly), so their ratio is a fixed property of the 1.5 kWh/kWp sizing choice itself, not of how much of the city is built out. No round-trip efficiency loss is modelled; this is a capacity limit only, a simplification stated on the page.
-
-The chart accompanying this makes the shape point visually: hourly output across the selected day, rated against derated, with the evening hours shaded, so the reason storage matters is visible, not just stated.
+What replaces it: **one line**, the storage capacity these rooftops would justify at the selected build-out level, at 1.5 kWh per kWp (HTW Berlin upper bound, section 3), cited plainly. No ratios, no hour windows, no dispatch story. The large-unit storage dots stay on the map (section 3), now with the same hover behaviour as districts, one interaction pattern for the whole page.
 
 ### Architecture note specific to this panel
 
@@ -383,7 +393,7 @@ Any request implying one of these is a stop-and-ask:
 ### Decided
 
 - **Repo name:** `duesseldorf-solar-storage`
-- **Postcode field in MaStR:** yes. `Postleitzahl` and `Ort` are both 100% non-null for Duesseldorf, across 6,660 storage units and 11,804 PV units. Coordinates are the sparse field (0.4% for storage, 3.1% for PV), and sparse in a size-biased way, not randomly. This is the finding that made PLZ the only geography the registry data can honestly support at all.
+- **Postcode field in MaStR:** yes. `Postleitzahl` and `Ort` are both 100% non-null for Duesseldorf, across 7,025 storage units and 11,804 PV units. Coordinates are the sparse field (0.4% for storage, 3.1% for PV), and sparse in a size-biased way, not randomly. This is the finding that made PLZ the only geography the registry data can honestly support at all.
 - **Roof suitability rule:** building level (`geb_id` sum), not facet level, kWp >= 10, ranked by that building's yield-weighted `kwh_kwp`. See section 3 for the full reasoning and the corrected potential figures.
 - **Suitable-roof display rule:** every qualifying building drawn per Stadtteil, on click, one Stadtteil at a time, coloured by roof quality (Fair/Good/Excellent, fixed citywide `kwh_kwp` thresholds, not a per-district top 20 any more, see section 3); aggregates always count every qualifying building, regardless of band.
 - **Storage geography and focus:** postcode facts (unit count, kWh) inside the Stadtteil panel for the rest, large units (>100 kW) called out as exact dots, an NRW-wide >1 MW layer added for contrast, battery potential reframed away from a home-battery count.
@@ -426,7 +436,7 @@ Verified in iteration 1 or in this session. Re-check before any of them reach th
 | Duesseldorf roof facets in cadastre | 305,939, EPSG:25832 | Current |
 | Duesseldorf distinct buildings in cadastre (`geb_id`) | 142,377 total; 58,631 qualifying before the north-facing exclusion, 48,475 after | Current |
 | Duesseldorf north-facing pitched facets excluded | 43,617 facets, 260,042 kWp, dropped before the building sum | Current |
-| Duesseldorf BESS units | 6,660, of which 28 carry usable coordinates | Current, corrected from v2's 6,672/29 |
+| Duesseldorf BESS units | 7,025, of which 28 carry usable coordinates, 52,230 kW combined capacity | Current (v3.2). Was 6,672/29 (v2), then 6,660/28 (a later pull); both superseded once `storage_units` was joined correctly (session note, `fetch_mastr.py`'s known trap) and `build_storage.py` stopped hardcoding the coordinate count into its citywide_note string, which had let it silently drift out of sync with the total once already |
 | Duesseldorf BESS units above 100 kW | 6, all 6 with usable coordinates | Current |
 | Duesseldorf BESS units above 1 MW | 1 (10 MW, PLZ 40549, status "In Planung") | Current |
 | Duesseldorf PV units by coordinate coverage | 0% below 30 kWp (11,394 units), 85.8-100% at 30 kWp and above (410 units) | Current |
