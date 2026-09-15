@@ -722,11 +722,3 @@ footer a {
   font-variant-numeric: tabular-nums;
 }
 
-.scenario-asymmetry-note {
-  font-size: 10px;
-  color: #8a8f98;
-  font-style: italic;
-  margin-top: 10px;
-  border-top: 1px solid #ececea;
-  padding-top: 8px;
-}

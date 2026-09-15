@@ -40,13 +40,14 @@
         <button type="button" id="info-close" class="info-close" aria-label="Close">&times;</button>
         <h2 id="info-modal-title">About this page</h2>
         <h3>What this models</h3>
-        <p>A thought experiment: every suitable roof in Duesseldorf carries solar, feeding storage. It is not a forecast, and it is not a plan anyone has proposed.</p>
+        <p>A thought experiment: every suitable roof in Duesseldorf carries solar, and what heat and cooling demand do to that. It is not a forecast, and it is not a plan anyone has proposed.</p>
         <h3>What counts as a suitable roof</h3>
         <p>A building qualifies once its roof faces sum to at least 10 kW. North-facing pitched faces are excluded. Flat roofs count, since panels on them are angled south regardless of the roof's raw tilt.</p>
         <h3>Where the numbers come from</h3>
-        <p>Roof potential: Solarkataster NRW. What is already installed: the Marktstammdatenregister, Germany's renewable energy registry. Weather, for the heatwave comparison: ERA5, via Open-Meteo.</p>
+        <p>Roof potential: Solarkataster NRW. What is already installed: the Marktstammdatenregister, Germany's renewable energy registry. Weather, for the heatwave comparison: ERA5, via Open-Meteo. The city's own electricity use: Duesseldorf's Energie- und Treibhausgasbilanz 2022.</p>
         <h3>The cooling-demand figure</h3>
         <p>The cooling-demand toggle uses a France analogue: French evening electricity demand ran 25% above off-season levels during the 2025 heatwaves (IEA). German residential air conditioning ownership is too low for a domestic figure to exist, so this is the closest real comparison available, never a Duesseldorf measurement.</p>
+        <p>Supply above is modelled hour by hour from real ERA5 weather. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the cooling-demand surge is a single cited figure applied to a window, not a modelled curve.</p>
       </div>
     </div>
     <div id="main-row" class="main-row">
@@ -118,14 +119,13 @@
               </div>
               <div class="scenario-headline" id="scenario-headline"></div>
               <div class="storage-line" id="storage-line">Loading&hellip;</div>
-              <div class="scenario-asymmetry-note">Supply above is modelled hour by hour from real ERA5 weather. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the cooling-demand surge above is a single cited figure applied to a window, not a modelled curve.</div>
             </div>
           </section>
         </div>
       </aside>
     </div>
     <footer id="footer">
-      Sources: Solarkataster NRW (opengeodata.nrw.de) and Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025.
+      Sources: Solarkataster NRW (opengeodata.nrw.de), Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025, and Landeshauptstadt Duesseldorf, Energie- und Treibhausgasbilanz 2022.
     </footer>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>

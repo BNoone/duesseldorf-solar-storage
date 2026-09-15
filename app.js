@@ -141,6 +141,17 @@ function formatTWh(mwh) {
   return `${Number(mwh / 1e6).toPrecision(2)} TWh`;
 }
 
+// District-level tier: MW capacity, GWh annual energy, 1 decimal place,
+// since district figures never reach a range where 2-significant-figure
+// rounding is needed the way the small city-level numbers do.
+function formatMW(kwp) {
+  return `${(kwp / 1000).toFixed(1)} MW`;
+}
+
+function formatGWhFromMwh(mwh) {
+  return `${(mwh / 1000).toFixed(1)} GWh`;
+}
+
 // Planar shoelace formula on raw lon/lat. Not a true geodesic area, but
 // Duesseldorf's Stadtteile all sit within about 0.2 degrees of latitude of
 // each other, so the distortion is close to uniform and relative ranking
@@ -276,9 +287,9 @@ function updateDrilldownPanel(stadtteilFeature) {
   currentDrilldownName = props.name;
   document.getElementById("drilldown-title").textContent = props.name;
   document.getElementById("drilldown-buildings").textContent = formatNumber(props.qualifying_buildings);
-  document.getElementById("drilldown-kwp").textContent = formatNumber(props.total_kwp) + " kWp";
-  document.getElementById("drilldown-mwh").textContent = formatNumber(props.total_mwh) + " MWh";
-  document.getElementById("drilldown-battery").textContent = formatNumber(props.battery_potential_kwh) + " kWh";
+  document.getElementById("drilldown-kwp").textContent = formatMW(props.total_kwp);
+  document.getElementById("drilldown-mwh").textContent = formatGWhFromMwh(props.total_mwh);
+  document.getElementById("drilldown-battery").textContent = formatNumber(props.battery_potential_kwh / 1000) + " MWh";
   document.getElementById("drilldown-status").textContent = "";
   document.getElementById("drilldown-panel").hidden = false;
   updatePostcodeFacts(props.name);
@@ -346,8 +357,11 @@ function updateFooter(properties) {
   const footer = document.getElementById("footer");
   if (properties.generated_at) {
     footer.innerHTML =
-      "Sources: Solarkataster NRW (opengeodata.nrw.de) and Open Data Duesseldorf, " +
-      "Stadtteilgrenzen Duesseldorf 2025. Data pulled " + properties.generated_at + ".";
+      "Sources: Solarkataster NRW (opengeodata.nrw.de), Open Data Duesseldorf, " +
+      "Stadtteilgrenzen Duesseldorf 2025, and Landeshauptstadt Duesseldorf, " +
+      '<a href="https://www.duesseldorf.de/fileadmin/Amt19/umweltamt/klimaschutz/pdf/klimaschutz/19_Klimafreundliches_Duesseldorf_2022_web_bf.pdf" target="_blank" rel="noopener">' +
+      "Energie- und Treibhausgasbilanz 2022</a> (electricity consumption, page 14). " +
+      "Data pulled " + properties.generated_at + ".";
   }
 }
 
@@ -570,8 +584,8 @@ function postcodeFactsHtml(stadtteilName) {
       <div class="postcode-row">
         <div class="postcode-row-head">${e.plz} <span class="postcode-share">(${e.share_pct.toFixed(0)}% of this neighbourhood's potential)</span></div>
         <table>
-          <tr><td class="label">Installed PV</td><td class="value">${formatNumber(e.registered_kwp)} kWp</td></tr>
-          <tr><td class="label">Postcode's own potential</td><td class="value">${formatNumber(e.own_total_kwp)} kWp</td></tr>
+          <tr><td class="label">Installed PV</td><td class="value">${formatMW(e.registered_kwp)}</td></tr>
+          <tr><td class="label">Postcode's own potential</td><td class="value">${formatMW(e.own_total_kwp)}</td></tr>
           <tr><td class="label">Postcode's realization</td><td class="value">${e.realization_pct.toFixed(1)}%</td></tr>
           <tr><td class="label">Registered storage</td><td class="value">${formatNumber(e.storage_units)} units, ${formatNumber(e.storage_kwh)} kWh</td></tr>
         </table>
