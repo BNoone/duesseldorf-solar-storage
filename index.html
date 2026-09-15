@@ -112,9 +112,9 @@
             </div>
             <div class="big-numbers" id="big-numbers">Loading&hellip;</div>
             <div class="scenario-body">
-              <div class="scenario-chart-wrap">
-                <canvas id="scenario-chart" height="220"></canvas>
-                <div class="chart-caption" id="chart-caption">Hourly generation, rated (undegraded) vs derated. Evening (18:00&ndash;21:59) shaded.</div>
+              <div class="loss-strip-wrap">
+                <div class="loss-strip" id="loss-strip"></div>
+                <div class="loss-strip-caption" id="loss-strip-caption"></div>
               </div>
               <div class="scenario-headline" id="scenario-headline"></div>
               <div class="scenario-stats-wrap">
@@ -131,7 +131,6 @@
     </footer>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

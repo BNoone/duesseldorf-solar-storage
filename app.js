@@ -602,7 +602,6 @@ function updatePostcodeFacts(stadtteilName) {
 let generationData = null;
 let coverageData = null;
 let batteryData = null;
-let scenarioChart = null;
 let scenarioHeatwave = false;
 let scenarioBuildoutPct = 11.6;
 let scenarioAcSurge = false;
@@ -614,8 +613,8 @@ let scenarioAcSurge = false;
 // measurement: German residential air conditioning ownership is low
 // enough that a domestic figure of this kind does not really exist to
 // cite. No demand curve is drawn, there is no hourly consumption dataset
-// for Duesseldorf; this single cited figure only shades and labels the
-// chart's existing evening window. It changes no generation number.
+// for Duesseldorf; this single cited figure is stated as text when the
+// toggle is on. It changes no generation number.
 const AC_SURGE_PCT = 25;
 
 // generation_scenarios.json's keys come from Python's f"{buildout_pct}"
@@ -707,119 +706,67 @@ function renderScenarioStats() {
     only, no round-trip loss modelled.</div>`;
 }
 
-// Shades the chart's evening window always; when the AC-surge toggle is on,
-// darkens that shading and labels it with the cited France-analogue figure.
-// No demand curve is drawn, this plugin only annotates the existing
-// generation lines, it never adds a dataset of its own.
-function eveningShadePlugin() {
-  return {
-    id: "eveningShade",
-    beforeDatasetsDraw(chart) {
-      const { ctx, chartArea, scales } = chart;
-      if (!chartArea) return;
-      const xScale = scales.x;
-      const eveningHours = batteryData.evening_hours;
-      // A plain number passed to getPixelForValue is used directly as the
-      // category's index and maps to its true position regardless of
-      // autoSkip, which only hides tick LABELS, not the underlying scale.
-      // getPixelForTick indexes into the post-autoSkip visible-tick array
-      // instead, so it silently mispositions the shading once labels skip.
-      const hourWidth = xScale.getPixelForValue(1) - xScale.getPixelForValue(0);
-      const xStart = xScale.getPixelForValue(eveningHours[0]) - hourWidth / 2;
-      const xEnd = xScale.getPixelForValue(eveningHours[eveningHours.length - 1]) + hourWidth / 2;
-      ctx.save();
-      ctx.fillStyle = scenarioAcSurge ? "rgba(198, 40, 40, 0.16)" : "rgba(166, 54, 3, 0.08)";
-      ctx.fillRect(xStart, chartArea.top, xEnd - xStart, chartArea.bottom - chartArea.top);
-      if (scenarioAcSurge) {
-        const midX = (xStart + xEnd) / 2;
-        ctx.fillStyle = "#a61b1b";
-        ctx.textAlign = "center";
-        ctx.font = "600 11px -apple-system, BlinkMacSystemFont, sans-serif";
-        ctx.fillText(`+${AC_SURGE_PCT}% evening demand`, midX, chartArea.top + 14);
-        ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
-        ctx.fillText("(France analogue, IEA)", midX, chartArea.top + 27);
-      }
-      ctx.restore();
-    },
-  };
+// The hourly loss strip replaces the rated-vs-derated line chart
+// (removed v3.1). Diagnosis: the chart was correct, 24 points, a real
+// zero-based axis, not "growing" or "exponential". The problem was
+// scale, a 5.3% heatwave-vs-normal difference is invisible next to a
+// ~93,000 kWh axis, so it rendered as two hairline-apart curves. This
+// strip plots the derate percentage itself, hour by hour, which is the
+// shape that actually needed to be legible: the loss concentrates in
+// the hottest hours, it is not spread evenly across the day.
+//
+// Per-hour loss = 1 - derated/rated, from the same two precomputed
+// arrays the old chart plotted (generation_scenarios.json). This is a
+// display ratio from two already-precomputed numbers, the same pattern
+// already used throughout this file (renderBigNumbers' diffPct,
+// updateCityStrip's realizationPct), not a new calculation of anything
+// the Python side did not already model.
+const LOSS_STRIP_COLOR_LOW = [254, 237, 222]; // #feedde, no loss
+const LOSS_STRIP_COLOR_HIGH = [166, 54, 3]; // #a63603, worst hour of the day
+
+function lossStripColor(fraction) {
+  const [r0, g0, b0] = LOSS_STRIP_COLOR_LOW;
+  const [r1, g1, b1] = LOSS_STRIP_COLOR_HIGH;
+  const r = Math.round(r0 + (r1 - r0) * fraction);
+  const g = Math.round(g0 + (g1 - g0) * fraction);
+  const b = Math.round(b0 + (b1 - b0) * fraction);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
-function renderScenarioChart() {
+function renderLossStrip() {
   const c = generationData.citywide[scenarioKey()];
-  const labels = c.hourly_rated_kwh.map((_, h) => String(h).padStart(2, "0") + ":00");
-
-  const data = {
-    labels,
-    datasets: [
-      {
-        label: "Rated",
-        data: c.hourly_rated_kwh,
-        borderColor: "#c9c3b6",
-        backgroundColor: "transparent",
-        borderDash: [4, 3],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        tension: 0.25,
-      },
-      {
-        label: "Derated",
-        data: c.hourly_derated_kwh,
-        borderColor: "#a63603",
-        backgroundColor: "rgba(166, 54, 3, 0.1)",
-        fill: true,
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.25,
-      },
-    ],
-  };
-
-  if (scenarioChart) {
-    scenarioChart.data = data;
-    scenarioChart.update();
-    return;
-  }
-
-  const ctx = document.getElementById("scenario-chart").getContext("2d");
-  scenarioChart = new Chart(ctx, {
-    type: "line",
-    data,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      // The chart only ever plots one day, 24 points, never the full
-      // year or all 50 districts, so there is no data-volume cost here.
-      // A snappier transition (default is 1000ms) is what actually makes
-      // toggling scenarios feel instant rather than laggy.
-      animation: { duration: 200 },
-      interaction: { mode: "index", intersect: false },
-      scales: {
-        x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
-        y: { beginAtZero: true, ticks: { callback: (v) => formatNumber(v) } },
-      },
-      plugins: {
-        legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 } } },
-        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} kWh` } },
-      },
-    },
-    plugins: [eveningShadePlugin()],
+  const hourlyLossPct = c.hourly_rated_kwh.map((rated, h) => {
+    const derated = c.hourly_derated_kwh[h];
+    return rated > 0 ? (1 - derated / rated) * 100 : 0;
   });
-}
 
-function renderChartCaption() {
-  const caption = document.getElementById("chart-caption");
-  caption.textContent = scenarioAcSurge
-    ? "Hourly generation, rated (undegraded) vs derated. Evening (18:00–21:59) shaded, labelled with the cited AC-surge figure. That figure describes demand; the generation lines above are unchanged by it."
-    : "Hourly generation, rated (undegraded) vs derated. Evening (18:00–21:59) shaded.";
+  const maxLossPct = Math.max(...hourlyLossPct);
+  const worstHour = hourlyLossPct.indexOf(maxLossPct);
+
+  const strip = document.getElementById("loss-strip");
+  strip.innerHTML = hourlyLossPct
+    .map((pct, h) => {
+      const fraction = maxLossPct > 0 ? pct / maxLossPct : 0;
+      const label = `${String(h).padStart(2, "0")}:00, ${pct.toFixed(1)}% lost to heat`;
+      return `<div class="loss-block" style="background:${lossStripColor(fraction)}" title="${label}"></div>`;
+    })
+    .join("");
+
+  let caption = `Loss by hour, relative to the day's peak. Worst: ` +
+    `${maxLossPct.toFixed(1)}% at ${String(worstHour).padStart(2, "0")}:00.`;
+  if (scenarioAcSurge) {
+    caption += ` Cooling demand runs an estimated +${AC_SURGE_PCT}% in the evening (France analogue, see (i)); ` +
+      `this does not change the generation loss shown above.`;
+  }
+  document.getElementById("loss-strip-caption").textContent = caption;
 }
 
 function updateScenarioView() {
   if (!generationData || !coverageData || !batteryData) return;
   renderBigNumbers();
   renderScenarioHeadline();
-  renderScenarioChart();
+  renderLossStrip();
   renderScenarioStats();
-  renderChartCaption();
 }
 
 document.getElementById("toggle-heatwave").addEventListener("change", (e) => {

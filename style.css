@@ -681,15 +681,28 @@ footer a {
   gap: 16px;
 }
 
-.scenario-chart-wrap {
+.loss-strip-wrap {
   min-width: 0;
 }
 
-.chart-caption {
+.loss-strip {
+  display: flex;
+  height: 40px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #ececea;
+}
+
+.loss-block {
+  flex: 1 1 0;
+  height: 100%;
+}
+
+.loss-strip-caption {
   font-size: 11px;
   color: #8a8f98;
   margin-top: 6px;
-  text-align: center;
+  line-height: 1.4;
 }
 
 .scenario-stats-wrap {
