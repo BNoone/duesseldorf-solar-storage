@@ -631,14 +631,41 @@ function scenarioKey() {
   return (scenarioHeatwave ? "heatwave" : "normal") + "_" + buildoutKeySuffix();
 }
 
-function formatGwh(n) {
-  return n.toLocaleString("en-US", { maximumFractionDigits: 1 }) + " GWh";
+// City-level annual figures, so TWh (the same tier as the header strip),
+// not GWh. coverage.json reports these in GWh, converted here for
+// display only.
+function formatTWhFromGwh(gwh) {
+  return `${Number(gwh / 1000).toPrecision(2)} TWh`;
 }
 
 function formatDate(iso) {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const [y, m, d] = iso.split("-").map(Number);
   return `${d} ${months[m - 1]} ${y}`;
+}
+
+// The payoff of the panel: normal day vs heatwave day, always both shown
+// together (not swapped by the heatwave toggle, which instead picks
+// which of the two the chart below plots hour by hour). City-level
+// figures, so MWh, the same tier the rest of this comparison already
+// uses (see build_generation.py's own headline print).
+function renderBigNumbers() {
+  const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
+  const heatC = generationData.citywide["heatwave_" + buildoutKeySuffix()];
+  const normalMwh = normalC.total_derated_kwh / 1000;
+  const heatMwh = heatC.total_derated_kwh / 1000;
+  const diffPct = (1 - heatMwh / normalMwh) * 100;
+
+  document.getElementById("big-numbers").innerHTML = `
+    <div class="big-number">
+      <div class="big-number-label">Normal day</div>
+      <div class="big-number-value">${formatNumber(normalMwh)} MWh</div>
+    </div>
+    <div class="big-number">
+      <div class="big-number-label">Heatwave day</div>
+      <div class="big-number-value">${formatNumber(heatMwh)} MWh
+        <span class="big-number-delta">(${diffPct.toFixed(1)}% less)</span></div>
+    </div>`;
 }
 
 function renderScenarioHeadline() {
@@ -648,26 +675,18 @@ function renderScenarioHeadline() {
 
   let html = "";
   if (scenarioHeatwave) {
-    const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
-    const diffKwh = normalC.total_derated_kwh - c.total_derated_kwh;
-    const diffPct = (diffKwh / normalC.total_derated_kwh) * 100;
     const windowLostKwh = c.window_total_rated_kwh - c.window_total_derated_kwh;
-    html += `<strong>${formatNumber(c.total_derated_kwh)} kWh</strong> generated on the heatwave's worst day ` +
-      `(${formatDate(c.day)}), against <strong>${formatNumber(normalC.total_derated_kwh)} kWh</strong> on the ` +
-      `matched normal day (${formatDate(normalC.day)}): <strong>${formatNumber(diffKwh)} kWh less, ${diffPct.toFixed(1)}%</strong>, ` +
-      `at ${cov.buildout_label} build-out.`;
-    html += `<span class="headline-note">Worst-hour derate ${c.worst_hour_derate_pct}%. Across the full ` +
-      `24&ndash;28 June window: ${formatNumber(c.window_total_derated_kwh)} kWh generated, ` +
-      `${formatNumber(windowLostKwh)} kWh lost to derate, average daylight derate ${c.avg_daylight_derate_pct}%.</span>`;
+    html += `Worst-hour derate <strong>${c.worst_hour_derate_pct}%</strong>. Across the full 24&ndash;28 June ` +
+      `window: ${formatNumber(c.window_total_derated_kwh)} kWh generated, ${formatNumber(windowLostKwh)} kWh ` +
+      `lost to derate, average daylight derate ${c.avg_daylight_derate_pct}%.`;
   } else {
     const lostPct = (1 - c.total_derated_kwh / c.total_rated_kwh) * 100;
-    html += `<strong>${formatNumber(c.total_derated_kwh)} kWh</strong> generated on a matched normal day ` +
-      `(${formatDate(c.day)}) at ${cov.buildout_label} build-out (rated ${formatNumber(c.total_rated_kwh)} kWh, ` +
-      `${lostPct.toFixed(1)}% lost to ordinary heat derate, not a heatwave effect).`;
+    html += `Rated ${formatNumber(c.total_rated_kwh)} kWh, ${lostPct.toFixed(1)}% lost to ordinary heat derate, ` +
+      `not a heatwave effect.`;
   }
   html += `<span class="headline-note">At ${cov.buildout_label} build-out, Duesseldorf's rooftops generate ` +
-    `${formatGwh(cov.annual_gwh)} a year, ${cov.coverage_pct}% of the city's own ${formatGwh(coverageData.city_consumption_gwh)} ` +
-    `electricity use (${coverageData.city_consumption_year}).</span>`;
+    `${formatTWhFromGwh(cov.annual_gwh)} a year, ${cov.coverage_pct}% of the city's own ` +
+    `${formatTWhFromGwh(coverageData.city_consumption_gwh)} electricity use (${coverageData.city_consumption_year}).</span>`;
 
   document.getElementById("scenario-headline").innerHTML = html;
 }
@@ -768,6 +787,11 @@ function renderScenarioChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      // The chart only ever plots one day, 24 points, never the full
+      // year or all 50 districts, so there is no data-volume cost here.
+      // A snappier transition (default is 1000ms) is what actually makes
+      // toggling scenarios feel instant rather than laggy.
+      animation: { duration: 200 },
       interaction: { mode: "index", intersect: false },
       scales: {
         x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false } },
@@ -791,6 +815,7 @@ function renderChartCaption() {
 
 function updateScenarioView() {
   if (!generationData || !coverageData || !batteryData) return;
+  renderBigNumbers();
   renderScenarioHeadline();
   renderScenarioChart();
   renderScenarioStats();
