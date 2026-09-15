@@ -534,38 +534,6 @@ footer a {
   padding-top: 6px;
 }
 
-.storage-popup h3 {
-  margin: 0 0 6px 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.storage-popup .planned-warning {
-  color: #a63603;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.storage-popup table {
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.storage-popup td {
-  padding: 2px 0;
-}
-
-.storage-popup td.label {
-  color: #6b7280;
-  padding-right: 14px;
-  white-space: nowrap;
-}
-
-.storage-popup td.value {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
 
 .scenario-panel {
   /* Lives inside .side-panel-content now, which already scrolls and pads. */
@@ -742,13 +710,16 @@ footer a {
   line-height: 1.4;
 }
 
-.scenario-stats-wrap {
-  min-width: 0;
-}
-
-.scenario-stats {
+.storage-line {
   font-size: 12px;
   color: #1f2933;
+  line-height: 1.5;
+  padding-top: 4px;
+}
+
+.storage-line strong {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .scenario-asymmetry-note {
@@ -756,40 +727,6 @@ footer a {
   color: #8a8f98;
   font-style: italic;
   margin-top: 10px;
-  border-top: 1px solid #ececea;
-  padding-top: 8px;
-}
-
-.scenario-stats h3 {
-  margin: 0 0 6px 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: #1f2933;
-}
-
-.scenario-stats table {
-  border-collapse: collapse;
-  width: 100%;
-  margin-bottom: 12px;
-}
-
-.scenario-stats td {
-  padding: 2px 0;
-}
-
-.scenario-stats td.label {
-  color: #6b7280;
-}
-
-.scenario-stats td.value {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-
-.scenario-stats .stats-note {
-  font-size: 11px;
-  color: #8a8f98;
   border-top: 1px solid #ececea;
   padding-top: 8px;
 }

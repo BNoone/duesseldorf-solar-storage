@@ -5,10 +5,12 @@ and the citywide honest-line totals.
 Per SCOPE.md section 3: storage focus is grid-scale and community-scale.
 Duesseldorf's own large-unit fleet is tiny (6 units above 100 kW) and its
 only unit above 1 MW is not built yet, so an NRW-wide layer of units above
-1 MW is included for contrast. Home batteries (the other 6,654 Duesseldorf
-units) are never plotted as points: only 28 of 6,660 carry usable
-coordinates (SCOPE.md section 3), so they are represented only as a
-citywide count and combined capacity, not as located dots.
+1 MW is included for contrast. Home batteries are never plotted as points:
+almost none carry usable coordinates (SCOPE.md section 3), so they are
+represented only as a citywide count and combined capacity, not as
+located dots. The coordinate-coverage count is computed fresh from the
+database on every run, not hardcoded, so it cannot drift out of sync
+with the total the way it once did (caught during the UX pass, v3.2).
 
 Reads directly from the local MaStR SQLite database built by
 fetch_mastr.py (data/raw/open-mastr/data/sqlite/open-mastr.db).
@@ -93,14 +95,30 @@ def build_duesseldorf(conn):
             },
         })
 
+    tech_placeholders = ", ".join("?" for _ in BATTERY_TECHS)
     cur = conn.execute(
         f"""SELECT COUNT(*), SUM(Bruttoleistung) FROM storage_extended
-            WHERE Landkreis = ? AND Batterietechnologie IN
-            ({", ".join("?" for _ in BATTERY_TECHS)})""",
+            WHERE Landkreis = ? AND Batterietechnologie IN ({tech_placeholders})""",
         ("Düsseldorf", *BATTERY_TECHS),
     )
     total_units, total_kw = cur.fetchone()
-    print(f"Duesseldorf citywide: {total_units} units, {total_kw:,.1f} kW total")
+
+    # Computed fresh every run, never hardcoded: a prior version of this
+    # script hardcoded "28 of 6,660" directly into citywide_note's text,
+    # so when the total was later corrected (a fetch bug fix elsewhere
+    # re-pulled the MaStR database with more units resolved), that
+    # trailing clause silently went stale and stopped matching SCOPE.md's
+    # own carry-over table. Caught and fixed in the UX pass, v3.2.
+    cur = conn.execute(
+        f"""SELECT COUNT(*) FROM storage_extended
+            WHERE Landkreis = ? AND Batterietechnologie IN ({tech_placeholders})
+            AND Laengengrad IS NOT NULL AND Breitengrad IS NOT NULL""",
+        ("Düsseldorf", *BATTERY_TECHS),
+    )
+    coord_count = cur.fetchone()[0]
+
+    print(f"Duesseldorf citywide: {total_units} units, {total_kw:,.1f} kW total, "
+          f"{coord_count} with usable coordinates")
 
     out = {
         "type": "FeatureCollection",
@@ -108,11 +126,13 @@ def build_duesseldorf(conn):
             "source": "Marktstammdatenregister (MaStR), local pull via open-mastr",
             "citywide_total_units": total_units,
             "citywide_total_kw": round(total_kw, 1),
+            "citywide_coord_count": coord_count,
             "citywide_note": (
                 f"Duesseldorf has {total_units:,} registered storage units totalling "
                 f"{total_kw:,.0f} kW. Only the {len(features)} above {LARGE_DUS_KW} kW are "
                 "shown as dots; the rest are home batteries the registry does not "
-                "locate (only 28 of 6,660 Duesseldorf units carry usable coordinates)."
+                f"locate (only {coord_count} of {total_units:,} Duesseldorf units carry "
+                "usable coordinates)."
             ),
             "generated_at": date.today().isoformat(),
         },

@@ -116,7 +116,7 @@ Postcode (PLZ) still exists in the data, because it is the only geography MaStR'
 **The check that forced postcode onto MaStR data in the first place** (MaStR pull, local database dated 2026-07-10):
 
 - PV coordinate coverage by size, Duesseldorf: <10 kWp 0% (8,969 units), 10-30 kWp 0% (2,425 units), 30-100 kWp 85.8% (295 units), 100 kWp-1 MWp 100% (107 units), >=1 MWp 100% (8 units). Overall 368 of 11,804 units, 3.1%.
-- Storage coordinate coverage, Duesseldorf: 28 of 6,660 units, 0.4%, and the pattern is the same, coordinates exist almost only above 100 kW.
+- Storage coordinate coverage, Duesseldorf: 28 of 7,025 units, 0.4%, and the pattern is the same, coordinates exist almost only above 100 kW.
 - The Solarkataster itself carries no field indicating an existing installation anywhere. Checked the full attribute dictionary (`Metadaten_PV_Dach_2024_09_opendata.xlsx`): every field describes roof geometry, orientation, irradiance, or a theoretical yield at a fixed 21.7% efficiency. It is a pure potential cadastre. Realization can only ever come from joining against MaStR, never from the cadastre alone.
 - **Confirmed empirically, not just from the schema:** spatial-joined the 368 located Duesseldorf PV units against the nearest Solarkataster facet centroid. 361 of 368 matched within 100 m, median distance 6.7 m. Matched facets carry entirely normal `kw` and `kwh_kwp` values, including facets reporting under 1 kWp of theoretical potential at addresses where hundreds of kWp are actually installed. The cadastre is gross, not net: existing installations never reduce a roof's reported potential.
 
@@ -206,7 +206,7 @@ Source: [HTW Berlin, Empfehlungen zur Auslegung von Solarstromspeichern](https:/
 
 ### Existing BESS: postcode facts in the panel, large units the only dots on the map
 
-Only 28 of 6,660 Duesseldorf battery units carry usable coordinates. v2.1 and v2.2 planned to show the rest **aggregated to their postcode as map clusters**; superseded by v2.3. A cluster is still one geography competing with Stadtteil on the same map, the exact problem this version removes. The fix is the same one applied to PV: registered storage unit counts and kWh are **postcode facts inside the Stadtteil panel** (see above), never their own map layer, never apportioned to a neighbourhood.
+Only 28 of 7,025 Duesseldorf battery units carry usable coordinates. v2.1 and v2.2 planned to show the rest **aggregated to their postcode as map clusters**; superseded by v2.3. A cluster is still one geography competing with Stadtteil on the same map, the exact problem this version removes. The fix is the same one applied to PV: registered storage unit counts and kWh are **postcode facts inside the Stadtteil panel** (see above), never their own map layer, never apportioned to a neighbourhood.
 
 **Storage focus stays on larger units.** Home batteries are context, not the interesting part of the story. Checked: Duesseldorf has exactly 6 storage units above 100 kW, and all 6 carry real coordinates (coordinate coverage is not the problem at this size). Only 1 exceeds 1 MW, a 10 MW unit at PLZ 40549, and its `EinheitBetriebsstatus` is "In Planung", not yet built. Duesseldorf's own grid-scale battery fleet is, honestly, not built yet. These 6 units are shown as exact dots at their real coordinates, unchanged by this revision, because they have real coordinates and do not need postcode aggregation at all.
 
@@ -377,7 +377,7 @@ Any request implying one of these is a stop-and-ask:
 ### Decided
 
 - **Repo name:** `duesseldorf-solar-storage`
-- **Postcode field in MaStR:** yes. `Postleitzahl` and `Ort` are both 100% non-null for Duesseldorf, across 6,660 storage units and 11,804 PV units. Coordinates are the sparse field (0.4% for storage, 3.1% for PV), and sparse in a size-biased way, not randomly. This is the finding that made PLZ the only geography the registry data can honestly support at all.
+- **Postcode field in MaStR:** yes. `Postleitzahl` and `Ort` are both 100% non-null for Duesseldorf, across 7,025 storage units and 11,804 PV units. Coordinates are the sparse field (0.4% for storage, 3.1% for PV), and sparse in a size-biased way, not randomly. This is the finding that made PLZ the only geography the registry data can honestly support at all.
 - **Roof suitability rule:** building level (`geb_id` sum), not facet level, kWp >= 10, ranked by that building's yield-weighted `kwh_kwp`. See section 3 for the full reasoning and the corrected potential figures.
 - **Suitable-roof display rule:** every qualifying building drawn per Stadtteil, on click, one Stadtteil at a time, coloured by roof quality (Fair/Good/Excellent, fixed citywide `kwh_kwp` thresholds, not a per-district top 20 any more, see section 3); aggregates always count every qualifying building, regardless of band.
 - **Storage geography and focus:** postcode facts (unit count, kWh) inside the Stadtteil panel for the rest, large units (>100 kW) called out as exact dots, an NRW-wide >1 MW layer added for contrast, battery potential reframed away from a home-battery count.
@@ -420,7 +420,7 @@ Verified in iteration 1 or in this session. Re-check before any of them reach th
 | Duesseldorf roof facets in cadastre | 305,939, EPSG:25832 | Current |
 | Duesseldorf distinct buildings in cadastre (`geb_id`) | 142,377 total; 58,631 qualifying before the north-facing exclusion, 48,475 after | Current |
 | Duesseldorf north-facing pitched facets excluded | 43,617 facets, 260,042 kWp, dropped before the building sum | Current |
-| Duesseldorf BESS units | 6,660, of which 28 carry usable coordinates | Current, corrected from v2's 6,672/29 |
+| Duesseldorf BESS units | 7,025, of which 28 carry usable coordinates, 52,230 kW combined capacity | Current (v3.2). Was 6,672/29 (v2), then 6,660/28 (a later pull); both superseded once `storage_units` was joined correctly (session note, `fetch_mastr.py`'s known trap) and `build_storage.py` stopped hardcoding the coordinate count into its citywide_note string, which had let it silently drift out of sync with the total once already |
 | Duesseldorf BESS units above 100 kW | 6, all 6 with usable coordinates | Current |
 | Duesseldorf BESS units above 1 MW | 1 (10 MW, PLZ 40549, status "In Planung") | Current |
 | Duesseldorf PV units by coordinate coverage | 0% below 30 kWp (11,394 units), 85.8-100% at 30 kWp and above (410 units) | Current |

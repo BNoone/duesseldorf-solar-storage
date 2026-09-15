@@ -52,7 +52,7 @@
     <div id="main-row" class="main-row">
       <div id="map">
         <div id="control-panel" class="control-panel">
-          <div class="control-section-title">LAYERS</div>
+          <div class="control-section-title">BESS OVERVIEW</div>
           <label class="control-row">
             <input type="checkbox" id="layer-storage-dus">
             Large storage, Duesseldorf
@@ -117,10 +117,8 @@
                 <div class="loss-strip-caption" id="loss-strip-caption"></div>
               </div>
               <div class="scenario-headline" id="scenario-headline"></div>
-              <div class="scenario-stats-wrap">
-                <div class="scenario-stats" id="scenario-stats"></div>
-                <div class="scenario-asymmetry-note">Supply above is modelled hour by hour from real ERA5 weather. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the AC surge above is a single cited figure applied to a window, not a modelled curve.</div>
-              </div>
+              <div class="storage-line" id="storage-line">Loading&hellip;</div>
+              <div class="scenario-asymmetry-note">Supply above is modelled hour by hour from real ERA5 weather. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the cooling-demand surge above is a single cited figure applied to a window, not a modelled curve.</div>
             </div>
           </section>
         </div>

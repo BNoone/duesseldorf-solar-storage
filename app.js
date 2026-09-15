@@ -221,16 +221,20 @@ function districtTooltipHtml(props) {
 // unit tier (GW capacity, TWh annual energy). The suitability-rule
 // sentence that used to sit under these moved into the (i) panel, it
 // never belonged in a stats strip.
+let cityTotalKwp = null;
+
 function updateCityStrip(features, properties) {
   const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
   const totalMwh = features.reduce((sum, f) => sum + f.properties.total_mwh, 0);
   const registeredKwp = properties.registered_pv_kwp || 0;
   const realizationPct = registeredKwp ? (registeredKwp / totalKwp) * 100 : 0;
+  cityTotalKwp = totalKwp;
 
   document.getElementById("stat-potential").textContent = formatGW(totalKwp);
   document.getElementById("stat-annual").textContent = formatTWh(totalMwh);
   document.getElementById("stat-built").textContent = formatGW(registeredKwp);
   document.getElementById("stat-realization").textContent = `${realizationPct.toFixed(1)}%`;
+  if (cityTotalKwp && coverageData) updateScenarioView();
 }
 
 // Plain language: no "specific yield", no "facets" on screen. Roof
@@ -467,32 +471,17 @@ function storageNrwStyle() {
   };
 }
 
-function storagePopupHtml(props) {
+// One interaction pattern for the whole page: storage dots hover like
+// districts do (name/summary line, detail line), not click-for-popup.
+// Reuses the same tooltip classes the district hover already uses.
+function storageTooltipHtml(props, extraLine) {
   const planned = props.status === "In Planung";
-  return `
-    <div class="storage-popup">
-      <h3>${formatKw(props.kw)} storage unit</h3>
-      ${planned ? '<div class="planned-warning">Not yet built, In Planung</div>' : ""}
-      <table>
-        <tr><td class="label">Capacity</td><td class="value">${formatKw(props.kw)}</td></tr>
-        <tr><td class="label">Chemistry</td><td class="value">${props.chemistry}</td></tr>
-        <tr><td class="label">Commissioning</td><td class="value">${props.commissioning}</td></tr>
-        <tr><td class="label">Status</td><td class="value">${props.status}</td></tr>
-      </table>
-    </div>`;
-}
-
-function storageNrwPopupHtml(props) {
-  return `
-    <div class="storage-popup">
-      <h3>${formatKw(props.kw)} storage unit</h3>
-      <table>
-        <tr><td class="label">Capacity</td><td class="value">${formatKw(props.kw)}</td></tr>
-        <tr><td class="label">Chemistry</td><td class="value">${props.chemistry}</td></tr>
-        <tr><td class="label">Landkreis</td><td class="value">${props.landkreis}</td></tr>
-        <tr><td class="label">Status</td><td class="value">${props.status}</td></tr>
-      </table>
-    </div>`;
+  const statusText = planned ? "Not yet built, In Planung" : props.status;
+  return (
+    `<div class="district-tooltip-name">${formatKw(props.kw)} storage unit</div>` +
+    `<div class="district-tooltip-row">${props.chemistry} &middot; ${props.commissioning}</div>` +
+    `<div class="district-tooltip-row">${statusText}${extraLine ? " &middot; " + extraLine : ""}</div>`
+  );
 }
 
 fetch("data/storage_duesseldorf.json")
@@ -501,7 +490,10 @@ fetch("data/storage_duesseldorf.json")
     storageDusLayer = L.geoJSON(data, {
       pointToLayer: (feature, latlng) => L.circleMarker(latlng, storageDusStyle(feature)),
       onEachFeature: (feature, layer) => {
-        layer.bindPopup(storagePopupHtml(feature.properties), { className: "storage-popup" });
+        layer.bindTooltip(storageTooltipHtml(feature.properties), {
+          sticky: true,
+          className: "stadtteil-tooltip",
+        });
       },
     });
     // Draw the largest (planned) unit last within the layer so it always
@@ -529,7 +521,10 @@ fetch("data/storage_nrw_large.json")
     storageNrwLayer = L.geoJSON(data, {
       pointToLayer: (feature, latlng) => L.circleMarker(latlng, storageNrwStyle(feature)),
       onEachFeature: (feature, layer) => {
-        layer.bindPopup(storageNrwPopupHtml(feature.properties), { className: "storage-popup" });
+        layer.bindTooltip(storageTooltipHtml(feature.properties, feature.properties.landkreis), {
+          sticky: true,
+          className: "stadtteil-tooltip",
+        });
       },
     });
 
@@ -592,14 +587,13 @@ function updatePostcodeFacts(stadtteilName) {
 
 // --- Scenario panel: heatwave derate, city coverage, battery case ----------
 //
-// All three datasets here are fully precomputed (scripts/build_generation.py,
-// build_coverage.py, build_battery.py); this file only ever selects a value
-// out of them for the current toggle state, never calculates one. See
-// SCOPE.md section 4.
+// Both datasets here are fully precomputed (scripts/build_generation.py,
+// build_coverage.py); this file only ever selects a value out of them for
+// the current toggle state, never calculates one. See SCOPE.md section 4.
+// (build_battery.py's output is no longer read here, see SCOPE.md v3.2.)
 
 let generationData = null;
 let coverageData = null;
-let batteryData = null;
 let scenarioHeatwave = false;
 let scenarioBuildoutPct = 11.6;
 let scenarioAcSurge = false;
@@ -715,20 +709,19 @@ function renderScenarioHeadline() {
     `${c.avg_daylight_derate_pct}%.`;
 }
 
-function renderScenarioStats() {
-  const b = batteryData.citywide[scenarioKey()];
-  document.getElementById("scenario-stats").innerHTML = `
-    <h3>Battery case, 1.5 kWh/kWp</h3>
-    <table>
-      <tr><td class="label">Battery capacity</td><td class="value">${formatNumber(b.battery_kwh)} kWh</td></tr>
-      <tr><td class="label">Midday generation (11:00&ndash;15:59)</td><td class="value">${formatNumber(b.midday_kwh)} kWh</td></tr>
-      <tr><td class="label">Evening generation (18:00&ndash;21:59)</td><td class="value">${formatNumber(b.evening_kwh)} kWh</td></tr>
-      <tr><td class="label">Shiftable to evening</td><td class="value">${formatNumber(b.shiftable_kwh)} kWh</td></tr>
-      <tr><td class="label">Evening with battery</td><td class="value">${formatNumber(b.evening_with_battery_kwh)} kWh</td></tr>
-    </table>
-    <div class="stats-note">A battery this size could shift ${b.shiftable_pct_of_midday}% of midday's generation,
-    raising evening generation to ${b.evening_multiple}&times; what those hours produce on their own. Capacity limit
-    only, no round-trip loss modelled.</div>`;
+// Storage cut down to one line (UX pass round two, commit 4): the
+// battery-dispatch table (shiftable kWh, evening multiples) is gone,
+// see SCOPE.md v3.2. No ratios, no hour windows, no dispatch story, just
+// the capacity these rooftops would justify at the selected build-out
+// level, 1.5 kWh per kW of solar (HTW Berlin upper bound, SCOPE.md
+// section 3), a fact stated, not an argument made.
+const STORAGE_KWH_PER_KW = 1.5;
+
+function renderStorageLine() {
+  const capacityKwh = cityTotalKwp * (scenarioBuildoutPct / 100) * STORAGE_KWH_PER_KW;
+  document.getElementById("storage-line").innerHTML =
+    `These rooftops would justify about <strong>${formatNumber(capacityKwh / 1000)} MWh</strong> of battery ` +
+    `storage, at 1.5 kWh per kW of solar (HTW Berlin).`;
 }
 
 // The hourly loss strip replaces the rated-vs-derated line chart
@@ -787,12 +780,12 @@ function renderLossStrip() {
 }
 
 function updateScenarioView() {
-  if (!generationData || !coverageData || !batteryData) return;
+  if (!generationData || !coverageData || cityTotalKwp === null) return;
   renderLevelAnswer();
   renderDerateLadder();
   renderScenarioHeadline();
   renderLossStrip();
-  renderScenarioStats();
+  renderStorageLine();
 }
 
 document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
@@ -816,12 +809,10 @@ document.querySelectorAll(".buildout-step").forEach((btn) => {
 Promise.all([
   fetch("data/generation_scenarios.json").then((res) => res.json()),
   fetch("data/coverage.json").then((res) => res.json()),
-  fetch("data/battery_case.json").then((res) => res.json()),
 ])
-  .then(([gen, cov, batt]) => {
+  .then(([gen, cov]) => {
     generationData = gen;
     coverageData = cov;
-    batteryData = batt;
     updateScenarioView();
   })
   .catch((err) => {
