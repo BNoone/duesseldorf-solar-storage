@@ -83,25 +83,41 @@
       <aside id="side-panel" class="side-panel">
         <button type="button" id="panel-toggle" class="panel-toggle" title="See the stats and play with scenarios">Hide</button>
         <div id="side-panel-content" class="side-panel-content">
-          <div class="buildout-control" id="buildout-control">
-            <span class="buildout-control-label">Build-out</span>
-            <div class="buildout-steps" id="buildout-steps">
-              <button type="button" class="buildout-step active" data-pct="11.6" title="Today's measured rate, 11.6%">Today</button>
-              <button type="button" class="buildout-step" data-pct="30.0">30%</button>
-              <button type="button" class="buildout-step" data-pct="50.0">50%</button>
-              <button type="button" class="buildout-step" data-pct="100.0">100%</button>
-            </div>
-          </div>
-          <div class="level-answer" id="level-answer">
-            <h2 class="level-answer-heading" id="level-answer-heading">&hellip;</h2>
-            <div class="level-stats" id="level-stats"></div>
-          </div>
           <section id="scenario-panel" class="scenario-panel">
+
+            <!-- 1. The answer -->
+            <div class="level-answer" id="level-answer">
+              <h2 class="level-answer-heading" id="level-answer-heading">&hellip;</h2>
+              <div class="level-stats" id="level-stats"></div>
+            </div>
+
+            <!-- 2. The numbers -->
             <div class="scenario-heading">
               <h2>Normal day vs heatwave</h2>
               <p class="scenario-intro">Same rooftops, two conditions. How much energy on a normal day, how much on a heatwave day. A thought experiment, not a forecast.</p>
             </div>
-            <div class="scenario-controls">
+            <div class="derate-ladder" id="derate-ladder">Loading&hellip;</div>
+            <div class="loss-strip-wrap">
+              <div class="loss-strip" id="loss-strip"></div>
+              <div class="loss-strip-caption" id="loss-strip-caption"></div>
+            </div>
+            <div class="scenario-headline" id="scenario-headline"></div>
+
+            <!-- 4. Storage -->
+            <div class="storage-line" id="storage-line">Loading&hellip;</div>
+
+            <!-- 5. Controls, last: everything above visibly changes when
+                 any of these change. -->
+            <div class="all-controls" id="all-controls">
+              <div class="buildout-control" id="buildout-control">
+                <span class="buildout-control-label">Build-out</span>
+                <div class="buildout-steps" id="buildout-steps">
+                  <button type="button" class="buildout-step active" data-pct="11.6" title="Today's measured rate, 11.6%">Today</button>
+                  <button type="button" class="buildout-step" data-pct="30.0">30%</button>
+                  <button type="button" class="buildout-step" data-pct="50.0">50%</button>
+                  <button type="button" class="buildout-step" data-pct="100.0">100%</button>
+                </div>
+              </div>
               <label class="scenario-toggle">
                 <input type="checkbox" id="toggle-heatwave">
                 <span>Heatwave (24&ndash;28 June 2026)</span>
@@ -110,15 +126,6 @@
                 <input type="checkbox" id="toggle-ac-surge">
                 <span>Cooling demand surge</span>
               </label>
-            </div>
-            <div class="derate-ladder" id="derate-ladder">Loading&hellip;</div>
-            <div class="scenario-body">
-              <div class="loss-strip-wrap">
-                <div class="loss-strip" id="loss-strip"></div>
-                <div class="loss-strip-caption" id="loss-strip-caption"></div>
-              </div>
-              <div class="scenario-headline" id="scenario-headline"></div>
-              <div class="storage-line" id="storage-line">Loading&hellip;</div>
             </div>
           </section>
         </div>

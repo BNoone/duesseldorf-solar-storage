@@ -553,15 +553,18 @@ footer a {
   max-width: 640px;
 }
 
-.scenario-controls {
+/* All controls (build-out, heatwave, AC ownership) live at the very
+   bottom of the panel now (UX pass round three, commit 2): text and
+   numbers first, controls last, so a control never feels disconnected
+   from the numbers above it that it changes. */
+.all-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 18px;
-  padding: 10px 0;
+  padding: 14px 0 4px 0;
+  margin-top: 8px;
   border-top: 1px solid #ececea;
-  border-bottom: 1px solid #ececea;
-  margin-bottom: 12px;
 }
 
 .scenario-toggle {
@@ -577,7 +580,6 @@ footer a {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-bottom: 12px;
 }
 
 .buildout-control-label {
@@ -680,14 +682,9 @@ footer a {
   margin-top: 4px;
 }
 
-.scenario-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .loss-strip-wrap {
   min-width: 0;
+  margin-top: 4px;
 }
 
 .loss-strip {
@@ -713,8 +710,10 @@ footer a {
 .storage-line {
   font-size: 12px;
   color: #1f2933;
-  line-height: 1.5;
-  padding-top: 4px;
+  line-height: 1.6;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ececea;
 }
 
 .storage-line strong {
