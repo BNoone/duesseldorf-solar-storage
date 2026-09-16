@@ -203,14 +203,39 @@ function polygonAreaAndCentroid(geometry) {
 // instead of asking a visitor to cross-reference a corner legend.
 let potentialBreaksInfo = null;
 
+// Fill opacity scales with zoom (UX pass round three, commit 5): full,
+// about 0.7, at city level (zoom 11-12) where the choropleth pattern is
+// the point, fading to about 0.2 by zoom 15 and closer, where a visitor
+// is looking for streets and buildings underneath, not district colour.
+// Linearly interpolated in between. Borders are never touched here, no
+// `opacity` is set on them, so they stay at Leaflet's default full
+// opacity at every zoom, the one thing that must stay readable once the
+// fill has faded.
+const DISTRICT_FILL_OPACITY_NEAR = 0.7;
+const DISTRICT_FILL_OPACITY_FAR = 0.2;
+const DISTRICT_FILL_ZOOM_NEAR = 12;
+const DISTRICT_FILL_ZOOM_FAR = 15;
+
+function districtFillOpacityForZoom(zoom) {
+  if (zoom <= DISTRICT_FILL_ZOOM_NEAR) return DISTRICT_FILL_OPACITY_NEAR;
+  if (zoom >= DISTRICT_FILL_ZOOM_FAR) return DISTRICT_FILL_OPACITY_FAR;
+  const t = (zoom - DISTRICT_FILL_ZOOM_NEAR) / (DISTRICT_FILL_ZOOM_FAR - DISTRICT_FILL_ZOOM_NEAR);
+  return DISTRICT_FILL_OPACITY_NEAR + t * (DISTRICT_FILL_OPACITY_FAR - DISTRICT_FILL_OPACITY_NEAR);
+}
+
 function activeStyleFn(feature) {
   return {
     fillColor: colorForValue(feature.properties.total_kwp, potentialBreaksInfo.breaks),
-    fillOpacity: 0.8,
+    fillOpacity: districtFillOpacityForZoom(map.getZoom()),
     color: "#ffffff",
     weight: 1.5,
   };
 }
+
+map.on("zoomend", () => {
+  if (!stadtteilLayer) return;
+  stadtteilLayer.eachLayer((l) => l.setStyle(activeStyleFn(l.feature)));
+});
 
 // District hover tooltip: name, possible capacity (MW, the district unit
 // tier), and qualifying buildings. Built/installed capacity is
@@ -378,14 +403,30 @@ fetch("data/stadtteile.json")
       max: Math.max(...values),
     };
 
+    // Only one district tooltip may be on screen at a time (UX pass round
+    // three, commit 5, fixes a real pile-up: hovering across adjacent
+    // districts quickly left every tooltip on screen, six or more dark
+    // boxes stacked over the city centre). Leaflet's own sticky-tooltip
+    // open/close can lose track of this when bringToFront() below
+    // reorders the hovered path's DOM node mid-hover, so the previous
+    // tooltip is closed explicitly here rather than trusted to close
+    // itself.
+    let openDistrictTooltipLayer = null;
+
     function highlightFeature(e) {
       const layer = e.target;
       layer.setStyle({ weight: 3, color: "#1f2933" });
       layer.bringToFront();
+      if (openDistrictTooltipLayer && openDistrictTooltipLayer !== layer) {
+        openDistrictTooltipLayer.closeTooltip();
+      }
+      openDistrictTooltipLayer = layer;
     }
 
     function resetFeature(e) {
       e.target.setStyle(activeStyleFn(e.target.feature));
+      e.target.closeTooltip();
+      if (openDistrictTooltipLayer === e.target) openDistrictTooltipLayer = null;
     }
 
     function onEachFeature(feature, layer) {
