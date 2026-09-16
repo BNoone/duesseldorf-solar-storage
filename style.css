@@ -228,30 +228,16 @@ header h1 {
   border-bottom: 1px solid #ececea;
 }
 
-.level-answer-heading {
-  margin: 8px 0 8px 0;
+.level-answer-text {
+  margin: 4px 0 0 0;
   font-size: 15px;
-  font-weight: 600;
+  line-height: 1.55;
   color: #1f2933;
 }
 
-.level-stats {
-  display: flex;
-  gap: 24px;
-}
-
-.level-stat-value {
-  font-size: 20px;
+.level-answer-text strong {
   font-weight: 700;
-  color: #1f2933;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-}
-
-.level-stat-label {
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 2px;
 }
 
 footer {
@@ -562,9 +548,10 @@ footer a {
   flex-wrap: wrap;
   align-items: center;
   gap: 18px;
-  padding: 14px 0 4px 0;
-  margin-top: 8px;
+  padding: 14px 0;
+  margin: 8px 0 14px 0;
   border-top: 1px solid #ececea;
+  border-bottom: 1px solid #ececea;
 }
 
 .scenario-toggle {
@@ -642,10 +629,6 @@ footer a {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   padding-right: 12px;
-}
-
-.ladder-table tr:first-child .ladder-value {
-  font-weight: 600;
 }
 
 .ladder-table td.ladder-note {
