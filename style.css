@@ -700,6 +700,19 @@ footer a {
   height: 100%;
 }
 
+.loss-strip-hours {
+  display: flex;
+  margin-top: 3px;
+}
+
+.loss-hour-label {
+  flex: 1 1 0;
+  text-align: center;
+  font-size: 10px;
+  color: #8a8f98;
+  font-variant-numeric: tabular-nums;
+}
+
 .loss-strip-caption {
   font-size: 11px;
   color: #8a8f98;

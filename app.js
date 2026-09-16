@@ -851,6 +851,18 @@ function renderLossStrip() {
     })
     .join("");
 
+  // Hour axis (UX pass round four, commit 3): the strip was unreadable
+  // without one, coloured blocks with no way to tell what the dark band
+  // meant. One label cell per hour, flex-sized identically to the blocks
+  // above so they align, text only at the marked hours.
+  const LOSS_STRIP_HOUR_MARKS = [0, 6, 12, 18, 23];
+  document.getElementById("loss-strip-hours").innerHTML = hourlyLossPct
+    .map((_, h) => {
+      const text = LOSS_STRIP_HOUR_MARKS.includes(h) ? String(h).padStart(2, "0") : "";
+      return `<div class="loss-hour-label">${text}</div>`;
+    })
+    .join("");
+
   document.getElementById("loss-strip-caption").textContent =
     `Loss by hour, relative to the day's peak. Worst: ` +
     `${maxLossPct.toFixed(1)}% at ${String(worstHour).padStart(2, "0")}:00.`;
