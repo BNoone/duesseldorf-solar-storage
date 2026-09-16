@@ -1,0 +1,26 @@
+{
+  "household_count": 371735,
+  "household_count_date": "2025-12-31",
+  "household_count_source": "Landeshauptstadt Duesseldorf, Amt fuer Statistik und Wahlen, \"Duesseldorf in Zahlen - Statistical facts\", table \"Private Haushalte\", row \"Insgesamt\", 31.12.2025.",
+  "kw_per_unit": 3.0,
+  "diversity_factor": 0.5,
+  "balance_hour": 15,
+  "method_source": "Jan Rosenow, \"What happens when 90% of Europe has air conditioning?\" (Andreou et al. 2020); German AC ownership 6% is Umweltbundesamt, cited in the same piece. https://janrosenow.substack.com/p/what-happens-when-90-of-europe-has",
+  "levels": [
+    {
+      "ac_ownership_pct": 6,
+      "label": "6% (today)",
+      "cooling_mw": 33.5
+    },
+    {
+      "ac_ownership_pct": 50,
+      "label": "50%",
+      "cooling_mw": 278.8
+    },
+    {
+      "ac_ownership_pct": 90,
+      "label": "90%",
+      "cooling_mw": 501.8
+    }
+  ]
+}

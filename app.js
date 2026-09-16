@@ -358,9 +358,11 @@ function updateFooter(properties) {
   if (properties.generated_at) {
     footer.innerHTML =
       "Sources: Solarkataster NRW (opengeodata.nrw.de), Open Data Duesseldorf, " +
-      "Stadtteilgrenzen Duesseldorf 2025, and Landeshauptstadt Duesseldorf, " +
+      "Stadtteilgrenzen Duesseldorf 2025, Landeshauptstadt Duesseldorf, " +
       '<a href="https://www.duesseldorf.de/fileadmin/Amt19/umweltamt/klimaschutz/pdf/klimaschutz/19_Klimafreundliches_Duesseldorf_2022_web_bf.pdf" target="_blank" rel="noopener">' +
-      "Energie- und Treibhausgasbilanz 2022</a> (electricity consumption, page 14). " +
+      "Energie- und Treibhausgasbilanz 2022</a> (electricity consumption, page 14), and " +
+      '<a href="https://statistik.duesseldorf.de/sites/download/Stadtbezirksprofile/D%C3%BCsseldorf_kompakt.pdf" target="_blank" rel="noopener">' +
+      "Amt f&uuml;r Statistik und Wahlen</a> (household count). " +
       "Data pulled " + properties.generated_at + ".";
   }
 }
@@ -608,20 +610,18 @@ function updatePostcodeFacts(stadtteilName) {
 
 let generationData = null;
 let coverageData = null;
+let coolingBalanceData = null;
 let scenarioHeatwave = false;
 let scenarioBuildoutPct = 11.6;
-let scenarioAcSurge = false;
 
-// IEA, "Staying cool without overheating the energy system" (28 July
-// 2025), https://www.iea.org/commentaries/staying-cool-without-overheating-the-energy-system
-// France's evening electricity demand ran 25% above off-season levels
-// during the 2025 heatwaves. A France analogue, never a Duesseldorf
-// measurement: German residential air conditioning ownership is low
-// enough that a domestic figure of this kind does not really exist to
-// cite. No demand curve is drawn, there is no hourly consumption dataset
-// for Duesseldorf; this single cited figure is stated as text when the
-// toggle is on. It changes no generation number.
-const AC_SURGE_PCT = 25;
+// The AC ownership on/off toggle and its +25%-evening-demand chart label
+// (IEA, a France analogue) are gone (UX pass round three, commit 3),
+// replaced entirely by the cooling balance below: a bottom-up MW
+// comparison, at the heatwave's own afternoon peak hour, not a demand
+// curve. See scripts/build_cooling_balance.py and common.py for the full
+// method and citations (Rosenow/Andreou, Umweltbundesamt, Duesseldorf's
+// own household count).
+let scenarioAcOwnershipPct = 6;
 
 // generation_scenarios.json's keys come from Python's f"{buildout_pct}"
 // (e.g. "normal_30.0"), which always keeps one decimal place. JS drops the
@@ -784,21 +784,45 @@ function renderLossStrip() {
     })
     .join("");
 
-  let caption = `Loss by hour, relative to the day's peak. Worst: ` +
+  document.getElementById("loss-strip-caption").textContent =
+    `Loss by hour, relative to the day's peak. Worst: ` +
     `${maxLossPct.toFixed(1)}% at ${String(worstHour).padStart(2, "0")}:00.`;
-  if (scenarioAcSurge) {
-    caption += ` Cooling demand runs an estimated +${AC_SURGE_PCT}% in the evening (France analogue, see (i)); ` +
-      `this does not change the generation loss shown above.`;
-  }
-  document.getElementById("loss-strip-caption").textContent = caption;
+}
+
+// The cooling balance (UX pass round three, commit 3): power, not
+// energy, at the heatwave day's own afternoon peak hour. Both sides are
+// MW; rooftop MW is that hour's already-precomputed derated output
+// (generation_scenarios.json, an hourly kWh figure numerically equal to
+// average kW for that hour), cooling MW is precomputed
+// (build_cooling_balance.py, data/cooling_balance.json) from
+// Duesseldorf's own household count and the Rosenow/Andreou method. No
+// new calculation here beyond a subtraction of two already-precomputed
+// numbers, the same pattern used throughout this file.
+function renderCoolingBalance() {
+  const c = generationData.citywide[scenarioKey()];
+  const balanceHour = coolingBalanceData.balance_hour;
+  const rooftopMw = c.hourly_derated_kwh[balanceHour] / 1000;
+  const level = coolingBalanceData.levels.find((l) => l.ac_ownership_pct === scenarioAcOwnershipPct);
+  const coolingMw = level.cooling_mw;
+  const remainingMw = rooftopMw - coolingMw;
+
+  const dayLabel = scenarioHeatwave ? "Heatwave afternoon" : "Normal-day afternoon";
+  const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
+  document.getElementById("cooling-balance-heading").textContent =
+    `${dayLabel}, ${String(balanceHour).padStart(2, "0")}:00, at ${cov.buildout_label} of roofs covered`;
+  document.getElementById("balance-cooling-label").textContent = `Cooling takes, at ${level.label} of homes`;
+  document.getElementById("balance-rooftop").textContent = `${formatNumber(rooftopMw)} MW`;
+  document.getElementById("balance-cooling").textContent = `${formatNumber(coolingMw)} MW`;
+  document.getElementById("balance-remaining").textContent = `${formatNumber(remainingMw)} MW`;
 }
 
 function updateScenarioView() {
-  if (!generationData || !coverageData || cityTotalKwp === null) return;
+  if (!generationData || !coverageData || !coolingBalanceData || cityTotalKwp === null) return;
   renderLevelAnswer();
   renderDerateLadder();
   renderScenarioHeadline();
   renderLossStrip();
+  renderCoolingBalance();
   renderStorageLine();
 }
 
@@ -807,15 +831,18 @@ document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
   updateScenarioView();
 });
 
-document.getElementById("toggle-ac-surge").addEventListener("change", (e) => {
-  scenarioAcSurge = e.target.checked;
-  updateScenarioView();
+document.querySelectorAll("#ac-ownership-steps .buildout-step").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    scenarioAcOwnershipPct = parseFloat(btn.dataset.pct);
+    document.querySelectorAll("#ac-ownership-steps .buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
+    updateScenarioView();
+  });
 });
 
-document.querySelectorAll(".buildout-step").forEach((btn) => {
+document.querySelectorAll("#buildout-steps .buildout-step").forEach((btn) => {
   btn.addEventListener("click", () => {
     scenarioBuildoutPct = parseFloat(btn.dataset.pct);
-    document.querySelectorAll(".buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
+    document.querySelectorAll("#buildout-steps .buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
     updateScenarioView();
   });
 });
@@ -823,10 +850,12 @@ document.querySelectorAll(".buildout-step").forEach((btn) => {
 Promise.all([
   fetch("data/generation_scenarios.json").then((res) => res.json()),
   fetch("data/coverage.json").then((res) => res.json()),
+  fetch("data/cooling_balance.json").then((res) => res.json()),
 ])
-  .then(([gen, cov]) => {
+  .then(([gen, cov, cool]) => {
     generationData = gen;
     coverageData = cov;
+    coolingBalanceData = cool;
     updateScenarioView();
   })
   .catch((err) => {

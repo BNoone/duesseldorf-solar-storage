@@ -89,6 +89,32 @@ EVENING_HOURS = [18, 19, 20, 21]
 ROOF_QUALITY_FAIR_GOOD_KWH_KWP = 730.0
 ROOF_QUALITY_GOOD_EXCELLENT_KWH_KWP = 830.0
 
+# Cooling balance (UX pass round three, commit 3): power, not energy, at
+# the heatwave afternoon peak hour, 15:00. Bottom-up method and both
+# figures below (3 kW per single-split unit, 0.5 diversity factor) from
+# Jan Rosenow, "What happens when 90% of Europe has air conditioning?"
+# (Andreou et al. 2020 is the underlying study the piece draws on;
+# Rosenow's own diversity factor is stated as a 0.4-0.6 range, this
+# project uses the 0.5 midpoint, per the round-three brief):
+#   https://janrosenow.substack.com/p/what-happens-when-90-of-europe-has
+# German household AC ownership, 6%, is Umweltbundesamt, cited in the
+# same piece.
+#
+# Duesseldorf's own household count, 371,735, is NOT from that piece
+# (which works in EU-wide averages); it is the city's own official
+# figure, Landeshauptstadt Duesseldorf, Amt fuer Statistik und Wahlen,
+# "Duesseldorf in Zahlen - Statistical facts" (Aug 2026 edition), table
+# "Private Haushalte", row "Insgesamt", 31.12.2025, sourced to the
+# Einwohnermelderegister via Haushaltegenerierung (HHgen):
+#   https://statistik.duesseldorf.de/sites/download/Stadtbezirksprofile/Duesseldorf_kompakt.pdf
+DUESSELDORF_HOUSEHOLDS = 371_735
+DUESSELDORF_HOUSEHOLDS_DATE = "2025-12-31"
+AC_KW_PER_UNIT = 3.0
+AC_DIVERSITY_FACTOR = 0.5
+AC_OWNERSHIP_LEVELS_PCT = [6, 50, 90]
+AC_OWNERSHIP_TODAY_PCT = 6  # Umweltbundesamt, current German household rate
+BALANCE_HOUR = 15  # 15:00, the heatwave day's afternoon peak
+
 
 def exclude_north_facing_pitched(facets):
     """Drop facets where dachtyp == 'geneigt' and himmel_kat == 'Nord'.
