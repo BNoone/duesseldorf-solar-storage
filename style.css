@@ -498,7 +498,7 @@ footer a {
 
 .control-panel {
   position: absolute;
-  top: 90px;
+  bottom: 12px;
   left: 12px;
   z-index: 1000;
   background: #ffffff;
