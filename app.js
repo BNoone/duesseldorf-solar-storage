@@ -259,6 +259,7 @@ function districtTooltipHtml(props) {
 // never belonged in a stats strip.
 let cityTotalKwp = null;
 let cityStorageUnitsTotal = null;
+let cityStorageTotalKwh = null;
 
 function updateCityStrip(features, properties) {
   const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
@@ -563,6 +564,7 @@ fetch("data/storage_duesseldorf.json")
 
     document.getElementById("storage-note").textContent = data.properties.citywide_note;
     cityStorageUnitsTotal = data.properties.citywide_total_units;
+    cityStorageTotalKwh = data.properties.citywide_total_kwh;
     if (cityTotalKwp !== null && generationData) updateScenarioView();
 
     document.getElementById("layer-storage-dus").addEventListener("change", (e) => {
@@ -697,22 +699,24 @@ function formatDate(iso) {
 // level, not a fixed one, or the build-out control looks like it does
 // nothing. Both figures already exist in data/coverage.json per level,
 // this only ever picks one out, never computes a new one.
+// One flowing sentence now (UX pass round four, commit 1), not a
+// heading plus separate stat boxes: the build-out level, the annual
+// generation and coverage (data/coverage.json, already verified
+// elsewhere on the page), and the storage capacity that level would
+// justify (the same figure the storage section below explains in full,
+// computed once here and once there from the same inputs, never a
+// second, disagreeing number).
 function renderLevelAnswer() {
   const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
-  const heading = scenarioBuildoutPct === 11.6
-    ? "At today's build-out"
-    : `At ${cov.buildout_label} of roofs covered`;
+  const buildoutPhrase = scenarioBuildoutPct === 11.6
+    ? "today's build-out"
+    : `${cov.buildout_label} of roofs covered`;
+  const capacityMwh = storageCapacityKwh() / 1000;
 
-  document.getElementById("level-answer-heading").textContent = heading;
-  document.getElementById("level-stats").innerHTML = `
-    <div class="level-stat">
-      <div class="level-stat-value">${formatTWhFromGwh(cov.annual_gwh)}</div>
-      <div class="level-stat-label">a year</div>
-    </div>
-    <div class="level-stat">
-      <div class="level-stat-value">${cov.coverage_pct}%</div>
-      <div class="level-stat-label">of the city's electricity</div>
-    </div>`;
+  document.getElementById("level-answer-text").innerHTML =
+    `At ${buildoutPhrase}, solar produces <strong>${formatTWhFromGwh(cov.annual_gwh)}</strong> a year, ` +
+    `which covers <strong>${cov.coverage_pct}%</strong> of the city's electricity, and would justify ` +
+    `<strong>${formatNumber(capacityMwh)} MWh</strong> of battery storage.`;
 }
 
 // One ladder instead of two separate derate figures that read as a
@@ -721,34 +725,37 @@ function renderLevelAnswer() {
 // down from the same lab rating: normal summer days already run hot in
 // full midday sun (panels are rated at 25 degC, not Duesseldorf ambient),
 // the heatwave subtracts again on top of that, it does not replace it.
+// Baseline fix (UX pass round four, commit 1): both percentages are now
+// measured against the SAME baseline, the lab rating. Before this, the
+// normal day's percentage was against the lab rating but the heatwave
+// day's was against the normal day, two different baselines that could
+// not be added or compared, a real bug, not just a wording choice. The
+// lab rating no longer gets its own row, competing for attention as a
+// third number; it is the baseline both percentages already state, so
+// it lives only in the explanatory sentence below the table.
 function renderDerateLadder() {
   const normalC = generationData.citywide["normal_" + buildoutKeySuffix()];
   const heatC = generationData.citywide["heatwave_" + buildoutKeySuffix()];
-  const labMwh = normalC.total_rated_kwh / 1000;
+  const labKwh = normalC.total_rated_kwh;
   const normalMwh = normalC.total_derated_kwh / 1000;
   const heatMwh = heatC.total_derated_kwh / 1000;
-  const normalLostPct = (1 - normalC.total_derated_kwh / normalC.total_rated_kwh) * 100;
-  const heatLostPct = (1 - heatMwh / normalMwh) * 100;
+  const normalLostPct = (1 - normalC.total_derated_kwh / labKwh) * 100;
+  const heatLostPct = (1 - heatC.total_derated_kwh / labKwh) * 100;
 
   document.getElementById("derate-ladder").innerHTML = `
     <table class="ladder-table">
       <tr>
-        <td class="ladder-label">Lab rating (25&deg;C)</td>
-        <td class="ladder-value">${formatNumber(labMwh)} MWh</td>
-        <td class="ladder-note"></td>
-      </tr>
-      <tr>
         <td class="ladder-label">Normal summer day</td>
         <td class="ladder-value">${formatNumber(normalMwh)} MWh</td>
-        <td class="ladder-note">${normalLostPct.toFixed(1)}% lost to everyday heat</td>
+        <td class="ladder-note">${normalLostPct.toFixed(1)}% below lab rating</td>
       </tr>
       <tr>
-        <td class="ladder-label">Heatwave day</td>
+        <td class="ladder-label">Heatwave (24&ndash;28 June 2026)</td>
         <td class="ladder-value">${formatNumber(heatMwh)} MWh</td>
-        <td class="ladder-note">${heatLostPct.toFixed(1)}% lost again to the heatwave</td>
+        <td class="ladder-note">${heatLostPct.toFixed(1)}% below lab rating</td>
       </tr>
     </table>
-    <div class="ladder-caption">Panels are rated at 25&deg;C in a lab and run hotter than that in full sun on any clear summer day, not only during heatwaves.</div>`;
+    <div class="ladder-caption">Panels are rated at 25&deg;C in a lab and run hotter than that in full sun on any clear summer day, not only in a heatwave.</div>`;
 }
 
 // Multi-day window detail, heatwave only; the annual/coverage sentence
@@ -775,7 +782,7 @@ function renderScenarioHeadline() {
 const STORAGE_KWH_PER_KW = 1.5;
 
 // Reference sizes to make the capacity figure legible as a count, not
-// just an abstract GWh. Both are real published specs, not invented
+// just an abstract MWh. Both are real published specs, not invented
 // round numbers:
 //   Grid-scale container: AceOn Group eTRON BESS, a standard 20ft
 //   utility BESS container, nameplate 5,015.96 kWh.
@@ -788,21 +795,37 @@ const STORAGE_KWH_PER_KW = 1.5;
 const CONTAINER_KWH_REFERENCE = 5015.96;
 const HOME_BATTERY_KWH_REFERENCE = 10;
 
-function formatGWhFromKwh(kwh) {
-  return `${Number(kwh / 1e6).toPrecision(2)} GWh`;
+// The single source of the storage capacity figure, used both by the
+// top-line answer and by the explanation below it, so the two can never
+// disagree. HTW Berlin's own upper-bound sizing recommendation, already
+// cited elsewhere on this page (SCOPE.md section 3).
+function storageCapacityKwh() {
+  return cityTotalKwp * (scenarioBuildoutPct / 100) * STORAGE_KWH_PER_KW;
 }
 
+// Explained, not asserted (UX pass round four, commit 2): the reasoning
+// (storage sized against the solar it serves, HTW Berlin's own ratio)
+// comes before the number, not after it. Both the justified capacity
+// and Duesseldorf's own registered capacity are stated in MWh, energy,
+// so they can actually be compared, not kWh for one and kW (power, a
+// different quantity) for the other, the bug this commit fixes.
+// Registered capacity comes from data/storage_duesseldorf.json's own
+// citywide_total_kwh, the usable-kWh join (storage_units, via
+// VerknuepfteEinheit) build_plz.py already used for postcode facts,
+// reused here for a citywide total (scripts/build_storage.py).
 function renderStorageBlock() {
-  const capacityKwh = cityTotalKwp * (scenarioBuildoutPct / 100) * STORAGE_KWH_PER_KW;
+  const capacityKwh = storageCapacityKwh();
   const containers = capacityKwh / CONTAINER_KWH_REFERENCE;
   const homeBatteries = capacityKwh / HOME_BATTERY_KWH_REFERENCE;
 
   document.getElementById("storage-block").innerHTML = `
-    <p>These rooftops would justify about <strong>${formatGWhFromKwh(capacityKwh)}</strong> of storage, ` +
-    `at 1.5 kWh per kW of solar (HTW Berlin).</p>
-    <p>Roughly <strong>${formatNumber(containers)}</strong> grid-scale containers (a standard 20ft utility BESS, ` +
-    `about 5 MWh each), or about <strong>${formatNumber(homeBatteries)}</strong> home batteries (about 10 kWh each).</p>
-    <p>Duesseldorf has ${formatNumber(cityStorageUnitsTotal)} registered storage units today.</p>`;
+    <p>Storage is usually sized against the solar it serves. HTW Berlin recommends no more than ` +
+    `1.5 kWh of battery per 1 kW of panels. At this build-out that works out to ` +
+    `<strong>${formatNumber(capacityKwh / 1000)} MWh</strong>, roughly ` +
+    `<strong>${formatNumber(containers)}</strong> grid-scale containers (a standard 20ft utility BESS, ` +
+    `about 5 MWh each) or <strong>${formatNumber(homeBatteries)}</strong> home batteries (about 10 kWh each).</p>
+    <p>Duesseldorf has ${formatNumber(cityStorageUnitsTotal)} registered storage units today, ` +
+    `totalling <strong>${formatNumber(cityStorageTotalKwh / 1000)} MWh</strong>.</p>`;
 }
 
 // The hourly loss strip replaces the rated-vs-derated line chart
@@ -851,6 +874,18 @@ function renderLossStrip() {
     })
     .join("");
 
+  // Hour axis (UX pass round four, commit 3): the strip was unreadable
+  // without one, coloured blocks with no way to tell what the dark band
+  // meant. One label cell per hour, flex-sized identically to the blocks
+  // above so they align, text only at the marked hours.
+  const LOSS_STRIP_HOUR_MARKS = [0, 6, 12, 18, 23];
+  document.getElementById("loss-strip-hours").innerHTML = hourlyLossPct
+    .map((_, h) => {
+      const text = LOSS_STRIP_HOUR_MARKS.includes(h) ? String(h).padStart(2, "0") : "";
+      return `<div class="loss-hour-label">${text}</div>`;
+    })
+    .join("");
+
   document.getElementById("loss-strip-caption").textContent =
     `Loss by hour, relative to the day's peak. Worst: ` +
     `${maxLossPct.toFixed(1)}% at ${String(worstHour).padStart(2, "0")}:00.`;
@@ -885,7 +920,7 @@ function renderCoolingBalance() {
 
 function updateScenarioView() {
   if (!generationData || !coverageData || !coolingBalanceData) return;
-  if (cityTotalKwp === null || cityStorageUnitsTotal === null) return;
+  if (cityTotalKwp === null || cityStorageUnitsTotal === null || cityStorageTotalKwh === null) return;
   renderLevelAnswer();
   renderDerateLadder();
   renderScenarioHeadline();

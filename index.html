@@ -85,39 +85,21 @@
         <div id="side-panel-content" class="side-panel-content">
           <section id="scenario-panel" class="scenario-panel">
 
-            <!-- 1. The answer -->
+            <!-- 0. The answer -->
             <div class="level-answer" id="level-answer">
-              <h2 class="level-answer-heading" id="level-answer-heading">&hellip;</h2>
-              <div class="level-stats" id="level-stats"></div>
+              <p class="level-answer-text" id="level-answer-text">&hellip;</p>
+            </div>
+
+            <!-- 1. Normal day vs heatwave -->
+            <div class="scenario-heading">
+              <h2>Normal day vs heatwave</h2>
+              <p class="scenario-intro">Same rooftops, two conditions. How much energy a solar panel produces on a normal day, and how much on a heatwave day.</p>
             </div>
 
             <!-- 2. The numbers -->
-            <div class="scenario-heading">
-              <h2>Normal day vs heatwave</h2>
-              <p class="scenario-intro">Same rooftops, two conditions. How much energy on a normal day, how much on a heatwave day. A thought experiment, not a forecast.</p>
-            </div>
             <div class="derate-ladder" id="derate-ladder">Loading&hellip;</div>
-            <div class="loss-strip-wrap">
-              <div class="loss-strip" id="loss-strip"></div>
-              <div class="loss-strip-caption" id="loss-strip-caption"></div>
-            </div>
-            <div class="scenario-headline" id="scenario-headline"></div>
 
-            <!-- 3. The balance -->
-            <div class="cooling-balance" id="cooling-balance">
-              <h3 class="cooling-balance-heading" id="cooling-balance-heading">&hellip;</h3>
-              <table class="balance-table">
-                <tr><td class="label">Rooftops deliver</td><td class="value" id="balance-rooftop"></td></tr>
-                <tr><td class="label" id="balance-cooling-label">Cooling takes</td><td class="value" id="balance-cooling"></td></tr>
-                <tr><td class="label">Left for everything else</td><td class="value" id="balance-remaining"></td></tr>
-              </table>
-            </div>
-
-            <!-- 4. Storage -->
-            <div class="storage-block" id="storage-block">Loading&hellip;</div>
-
-            <!-- 5. Controls, last: everything above visibly changes when
-                 any of these change. -->
+            <!-- 3. Controls -->
             <div class="all-controls" id="all-controls">
               <div class="buildout-control" id="buildout-control">
                 <span class="buildout-control-label">Build-out</span>
@@ -141,6 +123,28 @@
                 </div>
               </div>
             </div>
+
+            <!-- 4. The hourly loss strip -->
+            <div class="loss-strip-wrap">
+              <div class="loss-strip" id="loss-strip"></div>
+              <div class="loss-strip-hours" id="loss-strip-hours"></div>
+              <div class="loss-strip-caption" id="loss-strip-caption"></div>
+            </div>
+            <div class="scenario-headline" id="scenario-headline"></div>
+
+            <!-- Not in the 0-4 order given, kept as trailing content:
+                 the cooling balance (round three commit 3) and the full
+                 storage explanation (round four commit 2). Nothing asked
+                 for their removal. -->
+            <div class="cooling-balance" id="cooling-balance">
+              <h3 class="cooling-balance-heading" id="cooling-balance-heading">&hellip;</h3>
+              <table class="balance-table">
+                <tr><td class="label">Rooftops deliver</td><td class="value" id="balance-rooftop"></td></tr>
+                <tr><td class="label" id="balance-cooling-label">Cooling takes</td><td class="value" id="balance-cooling"></td></tr>
+                <tr><td class="label">Left for everything else</td><td class="value" id="balance-remaining"></td></tr>
+              </table>
+            </div>
+            <div class="storage-block" id="storage-block">Loading&hellip;</div>
           </section>
         </div>
       </aside>

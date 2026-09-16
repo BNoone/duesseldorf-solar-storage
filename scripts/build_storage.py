@@ -117,8 +117,24 @@ def build_duesseldorf(conn):
     )
     coord_count = cur.fetchone()[0]
 
+    # Usable capacity in kWh, energy, not the kW power figure above.
+    # storage_extended's own NutzbareSpeicherkapazitaet is null for every
+    # row, always (SCOPE.md section 13's known trap); the real value
+    # lives on the Anlage-level record in storage_units, joined via
+    # VerknuepfteEinheit -> EinheitMastrNummer. Same join build_plz.py
+    # already uses for postcode-level storage facts, reused here for a
+    # citywide total instead of per-postcode ones.
+    cur = conn.execute(
+        f"""SELECT SUM(su.NutzbareSpeicherkapazitaet)
+            FROM storage_extended se
+            LEFT JOIN storage_units su ON su.VerknuepfteEinheit = se.EinheitMastrNummer
+            WHERE se.Landkreis = ? AND se.Batterietechnologie IN ({tech_placeholders})""",
+        ("Düsseldorf", *BATTERY_TECHS),
+    )
+    total_kwh = cur.fetchone()[0] or 0.0
+
     print(f"Duesseldorf citywide: {total_units} units, {total_kw:,.1f} kW total, "
-          f"{coord_count} with usable coordinates")
+          f"{total_kwh:,.1f} kWh usable capacity, {coord_count} with usable coordinates")
 
     out = {
         "type": "FeatureCollection",
@@ -126,13 +142,14 @@ def build_duesseldorf(conn):
             "source": "Marktstammdatenregister (MaStR), local pull via open-mastr",
             "citywide_total_units": total_units,
             "citywide_total_kw": round(total_kw, 1),
+            "citywide_total_kwh": round(total_kwh, 1),
             "citywide_coord_count": coord_count,
             "citywide_note": (
-                f"Duesseldorf has {total_units:,} registered storage units totalling "
-                f"{total_kw:,.0f} kW. Only the {len(features)} above {LARGE_DUS_KW} kW are "
-                "shown as dots; the rest are home batteries the registry does not "
-                f"locate (only {coord_count} of {total_units:,} Duesseldorf units carry "
-                "usable coordinates)."
+                f"Duesseldorf has {total_units:,} registered storage units, totalling "
+                f"{total_kwh / 1000:,.1f} MWh of usable capacity. Only the {len(features)} "
+                f"above {LARGE_DUS_KW} kW are shown as dots; the rest are home batteries "
+                f"the registry does not locate (only {coord_count} of {total_units:,} "
+                "Duesseldorf units carry usable coordinates)."
             ),
             "generated_at": date.today().isoformat(),
         },
