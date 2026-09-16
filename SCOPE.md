@@ -1,9 +1,9 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v3.2
+# Duesseldorf Solar + Storage Potential Map · Scope v3.3
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-15 (v3.2, see Changelog)
+**Amended:** 2026-09-16 (v3.3, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
@@ -11,7 +11,21 @@ Read this file at the start of every session, before anything else. If the repo 
 
 ## 0. Changelog
 
-**v3.2 (2026-09-15):** all five commits from v3.1's plan shipped and tested; this entry confirms what actually landed, the plan below is the historical record of intent, not a duplicate of it.
+**v3.3 (2026-09-16):** a third UX pass, six commits. Storage dispatch and shifting are now permanently out of scope, not just cut from the current presentation; see the scope-change note below. One new cited lookup: Duesseldorf's own household count, verified against the source before use.
+
+**Commit 1** was already done: the rated-vs-derated chart and Chart.js were removed in round two (v3.1/v3.2), still pending merge to `main` when this round started, which is why it looked unfixed. Verified still gone, no new commit needed.
+
+**Commit 2** reordered the panel: text and numbers first (the answer, the numbers, the balance, storage), controls last (build-out, heatwave, AC ownership), all grouped together at the bottom. Before this, controls sat between the headline and the figures, which was why the build-out control felt disconnected from the numbers it changes.
+
+**Commit 3, the cooling balance,** replaces the on/off "cooling demand surge" toggle (+25% evening demand, France analogue, IEA) entirely with a three-step AC ownership control (6% today, 50%, 90%) and a new "balance" section: rooftops deliver vs cooling takes vs what's left, in MW, at the heatwave day's own afternoon peak hour (15:00). Power at one hour, never energy over a day, never an inferred demand curve. Method and both cited figures (3 kW per single-split unit, 0.5 diversity factor) are Jan Rosenow's, drawing on Andreou et al. 2020; German AC ownership today, 6%, is Umweltbundesamt. The one new lookup this batch allowed: Duesseldorf's own household count, 371,735 (31.12.2025), the city's own Amt fuer Statistik und Wahlen, verified against the actual source PDF (`pdftotext`) before use, reported before it was used in any calculation. See section 4.
+
+**Commit 4** cuts storage down to three plain-fact lines (capacity as GWh, as a container count, as a home-battery count, then today's registered-unit count) and removes shifting/dispatch as a subject the page argues at all, not just as a presentation choice, see the scope-change note. Two real published specs used for the container and home-battery reference sizes (AceOn Group eTRON BESS, sonnenBatterie eco 10), not invented round numbers.
+
+**Commit 5** fixed two real map bugs: district fill opacity now scales with zoom (about 0.7 near, 0.2 far, borders untouched, full opacity throughout), and a genuine tooltip pile-up (hovering across districts quickly left every tooltip on screen) is fixed by explicitly closing the previous tooltip rather than trusting Leaflet's own tracking, which loses it when `bringToFront()` reorders the DOM mid-hover.
+
+**Commit 6** moved the BESS box from top-left (where it sat over the city centre) to bottom-left. Re-checked its figures against SCOPE.md and the live database before shipping, as asked: both already agreed, 7,025/28, fixed in round two, re-verified here, unchanged.
+
+**Scope change, not presentation only (record for commit 4):** storage dispatch and shifting are now permanently out of scope, not a choice about the current page's argument. Storage's only remaining role on this page: a capacity count (GWh, containers, home batteries) and the existing large-unit map dots. `scripts/build_battery.py` and `data/battery_case.json` stay in the repo (a future scope could still resurrect the underlying computation, it was never wrong), but the page will not read them again without a new, explicit scope decision reopening this.
 
 Commit 1 (chart to loss strip), commit 2 (the derate ladder), and commit 4 (storage to one line, dots hover like districts) landed as planned below. Commit 4 additionally found and fixed a real, unplanned bug while checking the honest-line paragraph's figures as asked: neither cited storage total (6,660 on the page, 6,672 in SCOPE.md's own "superseded" note) was actually current, the true figure was a third number, 7,025 units, 52,230 kW, because `build_storage.py`'s citywide_note hardcoded its coordinate-coverage clause as a literal string instead of computing it, so a corrected total could never have produced a correct note. Fixed and re-run; section 3's carry-over table now reads 7,025/28.
 
@@ -71,11 +85,11 @@ Two options were considered. Apportion each PLZ's registered PV across its overl
 
 ## 1. What this is
 
-**One web page. One map. A few toggles.** A visitor opens it, sees Duesseldorf, and can answer one question: *how much rooftop solar could this city have, and what does heat and cooling demand do to that potential?* (Changed in v3.1; was "...and how much battery storage would that call for", see changelog. Storage is now a fact stated, one line and dots on the map, not the second argument the page makes.)
+**One web page. One map. A few toggles.** A visitor opens it, sees Duesseldorf, and can answer one question: *how much rooftop solar could this city have, and what does heat and cooling demand do to that potential?* (Changed in v3.1; was "...and how much battery storage would that call for", see changelog. Storage is now a count stated plainly, three lines and dots on the map, not an argument the page makes; shifting and dispatch are permanently out of scope, v3.3.)
 
 It is a portfolio piece for hiring managers. It has to load fast on a laptop, look competent, and every number on it has to trace to a named public source. It is not a research paper, not a planning tool, and not a simulation.
 
-**What the site actually models:** a scenario in which every suitable rooftop in Duesseldorf carries solar, then the heatwave PV derate and the cooling demand surge are applied on top of that built-out scenario. This scenario runs on the Solarkataster and ERA5 alone and needs no registry data at all. Existing installations, from MaStR, are shown alongside as context, to compute a realization rate, never as an input to the potential model itself.
+**What the site actually models:** a scenario in which every suitable rooftop in Duesseldorf carries solar, then the heatwave PV derate and the cooling balance are applied on top of that built-out scenario. This scenario runs on the Solarkataster and ERA5 alone and needs no registry data at all (the cooling balance's own household count is the one exception, see section 4). Existing installations, from MaStR, are shown alongside as context, to compute a realization rate, never as an input to the potential model itself.
 
 ## 2. The page
 
@@ -89,31 +103,43 @@ It is a portfolio piece for hiring managers. It has to load fast on a laptop, lo
 |  possible    per year     built        used                     |
 +---------------------------------------+-------------------------+
 |                                        | [Hide]                  |
-|  BESS OVERVIEW                        | Build-out: [Today] [30%]|
-|  [ ] Large storage, Duesseldorf        |   [50%] [100%]         |
-|  [ ] Large storage, NRW above 1 MW     |                         |
-|  (honest-line paragraph: unit count,  | At today's build-out    |
-|   combined capacity, why only 6 dots) | 0.13 TWh a year  4.2%   |
-|                                        |                         |
-|         THE MAP                       | Normal day vs heatwave  |
-|    (Stadtteil shapes, roof potential; | [ ] Heatwave [ ] Cooling|
-|     hover for name, possible MW,      |                         |
-|     qualifying buildings, no legend;  | Lab rating      648 MWh |
-|     click one to drill into its       | Normal day      606 MWh|
-|     buildings, coloured by roof       |   6.5% lost to everyday |
-|     quality. Its panel then shows     | Heatwave day    574 MWh|
-|     the postcodes it sits in, each    |   5.3% lost again       |
+|                                        | 1. THE ANSWER            |
+|         THE MAP                       | At today's build-out    |
+|    (Stadtteil shapes, roof potential, |   0.13 TWh a year  4.2% |
+|     fill opacity 0.7 near / 0.2 far   |                         |
+|     by zoom, borders always full;     | 2. THE NUMBERS          |
+|     hover for name, possible MW,      | Lab rating      648 MWh |
+|     qualifying buildings, one         | Normal day      606 MWh|
+|     tooltip at a time, no legend;     |   6.5% lost to everyday |
+|     click one to drill into its       | Heatwave day    574 MWh|
+|     buildings, coloured by roof       |   5.3% lost again       |
+|     quality. Its panel then shows     | [ hourly loss strip ]   |
+|     the postcodes it sits in, each    | worst: 9.4% at 14:00    |
 |     with its own exact PV,            |                         |
-|     realization, and storage facts.   | [ hourly loss strip ]   |
-|     Large-storage dots hover like     | worst: 9.4% at 14:00    |
-|     districts do. Never changes with  |                         |
-|     the panel's toggles, it stays     | These roofs would       |
-|     a map.)                           | justify ~242 MWh of     |
-|                                        | storage (HTW Berlin)    |
+|     realization, and storage facts.   | 3. THE BALANCE           |
+|     Large-storage dots hover like     | Heatwave afternoon,     |
+|     districts do. Never changes with  |   15:00, at today's     |
+|     the panel's toggles, it stays     |   build-out             |
+|     a map.)                           | Rooftops deliver  79 MW|
+|                                        | Cooling takes,    34 MW|
+|                                        |   at 6% of homes        |
+|  BESS OVERVIEW (bottom-left)          | Left for else     45 MW|
+|  [ ] Large storage, Duesseldorf        |                         |
+|  [ ] Large storage, NRW above 1 MW     | 4. STORAGE               |
+|  (honest-line paragraph: unit count,  | ~0.24 GWh, ~48 conts.,  |
+|   combined capacity, why only 6 dots) |   ~24,230 home batts.   |
+|                                        | 7,025 units today       |
+|                                        |                         |
+|                                        | 5. CONTROLS              |
+|                                        | Build-out: [Today][30%] |
+|                                        |   [50%][100%]           |
+|                                        | [ ] Heatwave            |
+|                                        | AC ownership: [6%][50%] |
+|                                        |   [90%]                 |
 +---------------------------------------+-------------------------+
 ```
 
-Map about 70%, panel about 30%, open by default; a "Hide" toggle collapses it to a narrow tab rather than hiding its content behind a control someone has to discover first. The build-out control is the panel's first control, and every number below it, including the "At [level]" heading, describes the selected level, never a fixed one. Clicking a Stadtteil opens a panel with that neighbourhood's own numbers and the postcodes inside it. The scenario panel's toggles change the panel's own numbers, never the map, which stays roof potential regardless of any toggle state. Nothing navigates away.
+Map about 70%, panel about 30%, open by default; a "Hide" toggle collapses it to a narrow tab rather than hiding its content behind a control someone has to discover first. Text and numbers first, controls last (UX pass round three, commit 2): the answer, the numbers, the balance, storage, then every control grouped together at the bottom, so a control never feels disconnected from the numbers above it that it changes. Clicking a Stadtteil opens a panel with that neighbourhood's own numbers and the postcodes inside it. The scenario panel's controls change the panel's own numbers, never the map, which stays roof potential regardless of any control state; only its fill opacity responds to zoom, not to any panel control.
 
 ## 3. The data model: one geography, postcode facts in the panel
 
@@ -285,17 +311,27 @@ Sources: [2026 European heatwaves](https://en.wikipedia.org/wiki/2026_European_h
 
 **The hourly loss strip** (UX pass round two, commit 1, replaces an earlier rated-vs-derated line chart): 24 blocks, one per hour, shaded by that hour's own derate percentage relative to the day's worst hour, worst hour labelled underneath ("worst: 9.4% at 14:00" for the normal day at today's build-out). Diagnosis for the record, so the chart's removal is not repeated as a mistake: the chart was not broken, it plotted 24 points correctly on a real zero-based axis. The problem was scale, a roughly 5% difference is invisible next to a ~93,000 kWh axis at full build-out, so it rendered as two hairline-apart curves. The strip plots the derate percentage directly instead, computed client-side as `1 - derated/rated` per hour from the same two precomputed arrays the chart used, a display ratio from already-precomputed numbers, the same pattern already used elsewhere in `app.js` (realization percentages, coverage percentages), not a new calculation of anything the Python side does not already model.
 
-### Toggle 2 · Cooling demand surge
+### Control 2 · The cooling balance (replaces "Toggle 2 · Cooling demand surge", UX pass round three commit 3)
 
-Labelled "Cooling demand surge" on the page (UX pass v3.0, plain language, was "AC demand surge (France analogue)"); the France analogue and its caveat moved into the (i) panel, so they are stated once, not repeated next to the toggle.
+The on/off checkbox and its IEA France-analogue figure (+25% on the evening peak, a demand curve shaded onto the old chart) are gone entirely, not just relabelled. Replaced by a three-step AC ownership control, 6% (today) / 50% / 90%, and a new "balance" section in the panel: at the heatwave day's own afternoon peak hour, 15:00, three rows, rooftops deliver / cooling takes / left for everything else, all in MW. Power at one hour, never energy over a day, never an inferred demand curve, the same discipline the old toggle already followed, carried into a more legible form.
 
-Evening demand rises during heat. There is no Duesseldorf consumption dataset, and none is invented. Instead: **+25% on the evening peak**, sourced to the IEA commentary ["Staying cool without overheating the energy system"](https://www.iea.org/commentaries/staying-cool-without-overheating-the-energy-system) (28 July 2025), which reports France at 25% above off-season demand during the 2025 heatwaves. France is the stated analogue because German residential air conditioning ownership is low, so a German figure of this kind does not really exist to cite.
+**Why the change:** only 6% of German households own air conditioning (Umweltbundesamt), so a fixed +25% figure answered a question ("what if AC demand surges") without ever showing what "surges" would actually mean in Duesseldorf terms. The interesting question is what happens as German AC ownership rises toward European norms, which the three-step control now lets a visitor see directly, against the same rooftops' own output at the same hour.
 
-Labelled on the page as a **France analogue**, never as a Duesseldorf measurement. No demand curve is drawn; there is no hourly demand data for Duesseldorf, and inventing one is out of scope. Instead the toggle shades the evening peak window on the generation chart and labels it with the cited figure.
+**Method, bottom-up** (`scripts/build_cooling_balance.py`): Duesseldorf's own household count x AC ownership share x 3 kW per single-split unit x a 0.5 diversity factor (not every unit runs at once). Method and both cited figures (3 kW/unit, 0.5 diversity) are Jan Rosenow's, ["What happens when 90% of Europe has air conditioning?"](https://janrosenow.substack.com/p/what-happens-when-90-of-europe-has), drawing on Andreou et al. 2020; German AC ownership today, 6%, is Umweltbundesamt, cited in the same piece.
 
-**The resulting asymmetry is stated on the page, not hidden:** supply is modelled hour by hour from ERA5, a real measured input. Demand is a single cited figure applied to a window, because anything finer would be invented rather than sourced. This note now lives in the (i) panel's cooling-demand section (UX pass round two, commit 5), next to the France-analogue caveat it explains, not as a standalone note in the panel body.
+**The one new lookup this batch allowed, reported before use:** Duesseldorf's own household count, not from the Rosenow piece, which works in EU-wide averages. **371,735** households, as of **31.12.2025**, Landeshauptstadt Duesseldorf, Amt fuer Statistik und Wahlen, "Duesseldorf in Zahlen - Statistical facts" (Aug 2026 edition), table "Private Haushalte", row "Insgesamt", sourced to the Einwohnermelderegister via Haushaltegenerierung (HHgen). Verified against the actual source PDF (`pdftotext` on the downloaded document, not recalled from memory) before it was used in any calculation.
 
-**Wired into the page** (`app.js`): a checkbox next to the heatwave toggle. On, it appends a line under the hourly loss strip stating the cited figure ("Cooling demand runs an estimated +25% in the evening (France analogue, see (i))"), explicitly noting it does not change the generation loss shown above. Replaces the earlier chart-shading treatment now that the chart itself is gone (commit 1). It touches no generation number and no precomputed JSON; `data/generation_scenarios.json` stays 8 combinations, not 16, see the architecture note below.
+**Computed, citywide, at the heatwave worst day's 15:00, 100% build-out:**
+
+| | 6% (today) | 50% | 90% |
+|---|---|---|---|
+| Rooftops deliver | 607 MW | 607 MW | 607 MW |
+| Cooling takes | 34 MW | 279 MW | 502 MW |
+| Left for everything else | 574 MW | 328 MW | 106 MW |
+
+**The rooftop side is not new data:** the same hourly derated output already computed for that hour (`data/generation_scenarios.json`'s `hourly_derated_kwh[15]`, an hourly kWh figure numerically equal to average kW for that hour, converted to MW). Only the cooling side is precomputed by the new script; `app.js` reads both and subtracts, the same pattern used throughout this file for display arithmetic on two already-precomputed numbers.
+
+**The asymmetry is stated on the page, not hidden:** supply is modelled hour by hour from ERA5, a real measured input. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the cooling balance is a single computed figure at one hour, not a modelled curve. This note lives in the (i) panel's cooling-balance section, next to the method and its two citations.
 
 ### Control 3 · Built out at Today / 30% / 50% / 100% (the panel's first control on screen, since commit 3 below)
 
@@ -316,11 +352,17 @@ Steps, not a free slider. Shows what the city's generation and battery potential
 
 **The most important sentence on the site:** Duesseldorf's rooftops could generate 1,116 GWh a year, the city uses 3,049 GWh (2022), so at full build-out rooftop solar alone would cover 37% of it. This is now stated as the "At 100% of roofs covered" heading's own two numbers (1.1 TWh a year, 36.6%, the city-level unit tier, commit 5) rather than a fixed, separate sentence: select 100% to see it.
 
-### Storage: one line, not an argument
+### Storage: a count, permanently, not an argument
 
-Cut in v3.1 (see changelog): the midday-surplus-to-evening-gap battery-dispatch table (battery capacity, midday generation, evening generation, shiftable kWh, evening-with-battery, the 70.1%-at-every-build-out-level and 4.25x/6.04x findings). None of it was wrong, `scripts/build_battery.py` and `data/battery_case.json` still exist and still compute it correctly, it is simply no longer part of what this page argues, see section 1.
+Cut in v3.1 (see changelog): the midday-surplus-to-evening-gap battery-dispatch table (battery capacity, midday generation, evening generation, shiftable kWh, evening-with-battery, the 70.1%-at-every-build-out-level and 4.25x/6.04x findings). Cut again, further, in v3.3: shifting and dispatch are now permanently out of scope for this page, not a presentation choice about the current argument, see the v3.3 changelog's scope-change note. None of it was wrong, `scripts/build_battery.py` and `data/battery_case.json` still exist and still compute it correctly, they simply will not be read by this page again without a new, explicit scope decision reopening the question.
 
-What replaces it: **one line**, the storage capacity these rooftops would justify at the selected build-out level, at 1.5 kWh per kWp (HTW Berlin upper bound, section 3), cited plainly. No ratios, no hour windows, no dispatch story. The large-unit storage dots stay on the map (section 3), now with the same hover behaviour as districts, one interaction pattern for the whole page.
+**What replaces it, three plain-fact lines, no ratios:**
+
+1. Capacity these rooftops would justify at the selected build-out level, 1.5 kWh per kWp (HTW Berlin upper bound, section 3), expressed in GWh (city-level tier): *"These rooftops would justify about 2.1 GWh of storage"* (at 100% build-out; scales down to about 0.24 GWh at today's 11.6%).
+2. The same capacity as a count, two reference sizes, both real published specs, not invented round numbers: roughly N **grid-scale containers** (AceOn Group eTRON BESS, a standard 20ft utility BESS container, nameplate 5,015.96 kWh, cited as one representative size, since specs run roughly 1-6+ MWh across vendors, not claimed as a universal industry standard), or about M **home batteries** (sonnenBatterie eco 10, 10 kWh usable capacity, a real, widely deployed German product). At 100% build-out: 416 containers, 208,875 home batteries.
+3. Duesseldorf's own registered storage count today (7,025, section 3), kept directly adjacent to the home-battery figure in line 2, not the container figure, since today's registered units are almost entirely home batteries, the like-for-like comparison.
+
+The large-unit storage dots stay on the map (section 3), with the same hover behaviour as districts, one interaction pattern for the whole page.
 
 ### Architecture note specific to this panel
 
@@ -328,9 +370,9 @@ ERA5 is fetched once per Stadtteil centroid (50 locations), not per building. Pe
 
 Every combination of heatwave on/off and build-out level is precomputed to static JSON. The browser only ever selects a precomputed value, never calculates one. This is the same non-negotiable rule as the rest of the scenario panel (section 6).
 
-**AC surge (commit 5) does not add a ninth data dimension.** It is a demand-side citation, not a generation number, so it changes nothing in `data/generation_scenarios.json`; precomputing 16 combinations for it would just duplicate the same 8 generation figures under two labels, implying AC surge affects supply when it explicitly must not (see Toggle 2 above). Instead the toggle is client-side UI state only: it recolours and labels the chart's existing evening shading and swaps in the asymmetry note, nothing more.
+**The cooling balance (commit 3, v3.3) also does not add a data dimension to `data/generation_scenarios.json`.** The rooftop side reads that file's own existing hourly figures directly; only the cooling side is separately precomputed, `data/cooling_balance.json`, three AC-ownership levels, not tied to build-out or heatwave state at all, so it is a flat, tiny file, not a combination that grows with the rest of the scenario grid.
 
-**Wired into the page** (`app.js`): exactly three controls, heatwave on/off, build-out (Today/30/50/100%), and cooling demand surge, all reading straight from `data/generation_scenarios.json`, `data/coverage.json`, and `data/battery_case.json`, never computing anything client-side. Flipping any of them updates the panel's top-line answer, the two big numbers (normal day vs heatwave day, MWh), the hourly chart (Chart.js from cdnjs, rated vs derated, evening shaded, one day, 24 points), the supporting detail text, and the battery-case stats together, since they all key off the same `{normal|heatwave}_{build-out}` pair. None of the three change the map: the choropleth stays roof potential regardless of any toggle state (the UX pass removed an earlier "colour the map by this scenario's generation" control, see v3.0 changelog and section 3's district-hover note), the map is exactly the roof-potential view described in section 3, undisturbed by anything in this panel.
+**Wired into the page** (`app.js`): exactly three controls, all grouped at the bottom of the panel (commit 2), build-out (Today/30/50/100%), heatwave on/off, and AC ownership (6%/50%/90%, replaces the old cooling-demand-surge checkbox, commit 3), reading straight from `data/generation_scenarios.json`, `data/coverage.json`, and `data/cooling_balance.json`, never computing anything client-side beyond simple display arithmetic on already-precomputed numbers (the same pattern used throughout this file). Flipping any of them updates the panel's top-line answer, the derate ladder, the hourly loss strip, the cooling balance, and the storage count together, since they all key off `{normal|heatwave}_{build-out}` and, for the balance, the AC-ownership level too. `data/battery_case.json` is no longer read at all (v3.1/v3.3, storage is now a count, not dispatch). None of the three controls change the map: the choropleth stays roof potential regardless of any control state (the UX pass removed an earlier "colour the map by this scenario's generation" control, see v3.0 changelog and section 3's district-hover note); only zoom changes its fill opacity (commit 5), never any panel control.
 
 ## 5. Two weather years, on purpose
 
@@ -406,7 +448,7 @@ None currently.
 ### Decided since (superseding the earlier recommendations above the line)
 
 - **PV derate coefficient:** -0.35%/degC on cell temperature (range -0.29 to -0.40 stated on the page), NOCT = 45 degC, cell temperature via the standard NOCT model. This replaces the earlier -0.47%/degC NREL PVWatts recommendation; the coefficient applies to cell temperature, never air temperature, see section 4 and section 13.
-- **AC surge multiplier:** +25% on the evening peak, sourced to IEA, "Staying cool without overheating the energy system" (28 July 2025), a France analogue, never presented as a Duesseldorf measurement. This replaces the earlier arXiv 2507.13534 recommendation. See section 4.
+- **AC surge multiplier: superseded (v3.3).** Was +25% on the evening peak, sourced to IEA, "Staying cool without overheating the energy system" (28 July 2025), a France analogue, itself replacing an earlier arXiv 2507.13534 recommendation. Replaced entirely by the cooling balance (section 4): a bottom-up MW figure at one hour, Duesseldorf's own household count x AC ownership share (6%/50%/90%) x 3 kW per single-split unit x 0.5 diversity factor, method and both figures Jan Rosenow's, drawing on Andreou et al. 2020; German AC ownership, 6%, is Umweltbundesamt.
 
 ## 10. Definition of done
 
