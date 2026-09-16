@@ -203,14 +203,39 @@ function polygonAreaAndCentroid(geometry) {
 // instead of asking a visitor to cross-reference a corner legend.
 let potentialBreaksInfo = null;
 
+// Fill opacity scales with zoom (UX pass round three, commit 5): full,
+// about 0.7, at city level (zoom 11-12) where the choropleth pattern is
+// the point, fading to about 0.2 by zoom 15 and closer, where a visitor
+// is looking for streets and buildings underneath, not district colour.
+// Linearly interpolated in between. Borders are never touched here, no
+// `opacity` is set on them, so they stay at Leaflet's default full
+// opacity at every zoom, the one thing that must stay readable once the
+// fill has faded.
+const DISTRICT_FILL_OPACITY_NEAR = 0.7;
+const DISTRICT_FILL_OPACITY_FAR = 0.2;
+const DISTRICT_FILL_ZOOM_NEAR = 12;
+const DISTRICT_FILL_ZOOM_FAR = 15;
+
+function districtFillOpacityForZoom(zoom) {
+  if (zoom <= DISTRICT_FILL_ZOOM_NEAR) return DISTRICT_FILL_OPACITY_NEAR;
+  if (zoom >= DISTRICT_FILL_ZOOM_FAR) return DISTRICT_FILL_OPACITY_FAR;
+  const t = (zoom - DISTRICT_FILL_ZOOM_NEAR) / (DISTRICT_FILL_ZOOM_FAR - DISTRICT_FILL_ZOOM_NEAR);
+  return DISTRICT_FILL_OPACITY_NEAR + t * (DISTRICT_FILL_OPACITY_FAR - DISTRICT_FILL_OPACITY_NEAR);
+}
+
 function activeStyleFn(feature) {
   return {
     fillColor: colorForValue(feature.properties.total_kwp, potentialBreaksInfo.breaks),
-    fillOpacity: 0.8,
+    fillOpacity: districtFillOpacityForZoom(map.getZoom()),
     color: "#ffffff",
     weight: 1.5,
   };
 }
+
+map.on("zoomend", () => {
+  if (!stadtteilLayer) return;
+  stadtteilLayer.eachLayer((l) => l.setStyle(activeStyleFn(l.feature)));
+});
 
 // District hover tooltip: name, possible capacity (MW, the district unit
 // tier), and qualifying buildings. Built/installed capacity is
@@ -233,6 +258,7 @@ function districtTooltipHtml(props) {
 // sentence that used to sit under these moved into the (i) panel, it
 // never belonged in a stats strip.
 let cityTotalKwp = null;
+let cityStorageUnitsTotal = null;
 
 function updateCityStrip(features, properties) {
   const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
@@ -358,9 +384,11 @@ function updateFooter(properties) {
   if (properties.generated_at) {
     footer.innerHTML =
       "Sources: Solarkataster NRW (opengeodata.nrw.de), Open Data Duesseldorf, " +
-      "Stadtteilgrenzen Duesseldorf 2025, and Landeshauptstadt Duesseldorf, " +
+      "Stadtteilgrenzen Duesseldorf 2025, Landeshauptstadt Duesseldorf, " +
       '<a href="https://www.duesseldorf.de/fileadmin/Amt19/umweltamt/klimaschutz/pdf/klimaschutz/19_Klimafreundliches_Duesseldorf_2022_web_bf.pdf" target="_blank" rel="noopener">' +
-      "Energie- und Treibhausgasbilanz 2022</a> (electricity consumption, page 14). " +
+      "Energie- und Treibhausgasbilanz 2022</a> (electricity consumption, page 14), and " +
+      '<a href="https://statistik.duesseldorf.de/sites/download/Stadtbezirksprofile/D%C3%BCsseldorf_kompakt.pdf" target="_blank" rel="noopener">' +
+      "Amt f&uuml;r Statistik und Wahlen</a> (household count). " +
       "Data pulled " + properties.generated_at + ".";
   }
 }
@@ -375,14 +403,30 @@ fetch("data/stadtteile.json")
       max: Math.max(...values),
     };
 
+    // Only one district tooltip may be on screen at a time (UX pass round
+    // three, commit 5, fixes a real pile-up: hovering across adjacent
+    // districts quickly left every tooltip on screen, six or more dark
+    // boxes stacked over the city centre). Leaflet's own sticky-tooltip
+    // open/close can lose track of this when bringToFront() below
+    // reorders the hovered path's DOM node mid-hover, so the previous
+    // tooltip is closed explicitly here rather than trusted to close
+    // itself.
+    let openDistrictTooltipLayer = null;
+
     function highlightFeature(e) {
       const layer = e.target;
       layer.setStyle({ weight: 3, color: "#1f2933" });
       layer.bringToFront();
+      if (openDistrictTooltipLayer && openDistrictTooltipLayer !== layer) {
+        openDistrictTooltipLayer.closeTooltip();
+      }
+      openDistrictTooltipLayer = layer;
     }
 
     function resetFeature(e) {
       e.target.setStyle(activeStyleFn(e.target.feature));
+      e.target.closeTooltip();
+      if (openDistrictTooltipLayer === e.target) openDistrictTooltipLayer = null;
     }
 
     function onEachFeature(feature, layer) {
@@ -518,6 +562,8 @@ fetch("data/storage_duesseldorf.json")
     });
 
     document.getElementById("storage-note").textContent = data.properties.citywide_note;
+    cityStorageUnitsTotal = data.properties.citywide_total_units;
+    if (cityTotalKwp !== null && generationData) updateScenarioView();
 
     document.getElementById("layer-storage-dus").addEventListener("change", (e) => {
       if (e.target.checked) {
@@ -608,20 +654,18 @@ function updatePostcodeFacts(stadtteilName) {
 
 let generationData = null;
 let coverageData = null;
+let coolingBalanceData = null;
 let scenarioHeatwave = false;
 let scenarioBuildoutPct = 11.6;
-let scenarioAcSurge = false;
 
-// IEA, "Staying cool without overheating the energy system" (28 July
-// 2025), https://www.iea.org/commentaries/staying-cool-without-overheating-the-energy-system
-// France's evening electricity demand ran 25% above off-season levels
-// during the 2025 heatwaves. A France analogue, never a Duesseldorf
-// measurement: German residential air conditioning ownership is low
-// enough that a domestic figure of this kind does not really exist to
-// cite. No demand curve is drawn, there is no hourly consumption dataset
-// for Duesseldorf; this single cited figure is stated as text when the
-// toggle is on. It changes no generation number.
-const AC_SURGE_PCT = 25;
+// The AC ownership on/off toggle and its +25%-evening-demand chart label
+// (IEA, a France analogue) are gone (UX pass round three, commit 3),
+// replaced entirely by the cooling balance below: a bottom-up MW
+// comparison, at the heatwave's own afternoon peak hour, not a demand
+// curve. See scripts/build_cooling_balance.py and common.py for the full
+// method and citations (Rosenow/Andreou, Umweltbundesamt, Duesseldorf's
+// own household count).
+let scenarioAcOwnershipPct = 6;
 
 // generation_scenarios.json's keys come from Python's f"{buildout_pct}"
 // (e.g. "normal_30.0"), which always keeps one decimal place. JS drops the
@@ -723,19 +767,42 @@ function renderScenarioHeadline() {
     `${c.avg_daylight_derate_pct}%.`;
 }
 
-// Storage cut down to one line (UX pass round two, commit 4): the
-// battery-dispatch table (shiftable kWh, evening multiples) is gone,
-// see SCOPE.md v3.2. No ratios, no hour windows, no dispatch story, just
-// the capacity these rooftops would justify at the selected build-out
-// level, 1.5 kWh per kW of solar (HTW Berlin upper bound, SCOPE.md
-// section 3), a fact stated, not an argument made.
+// Storage as a count (UX pass round two commit 4 cut the battery-dispatch
+// table down to one line; round three commit 4 cuts shifting/dispatch
+// entirely, out of scope, replaced with three plain facts, no ratios).
+// Capacity: 1.5 kWh per kW of solar (HTW Berlin upper bound, SCOPE.md
+// section 3), scales with the selected build-out level.
 const STORAGE_KWH_PER_KW = 1.5;
 
-function renderStorageLine() {
+// Reference sizes to make the capacity figure legible as a count, not
+// just an abstract GWh. Both are real published specs, not invented
+// round numbers:
+//   Grid-scale container: AceOn Group eTRON BESS, a standard 20ft
+//   utility BESS container, nameplate 5,015.96 kWh.
+//   https://www.aceongroup.com/battery-storage-products/battery-storage-systems/5mwh-battery-energy-storage-system/
+//   Home battery: sonnenBatterie eco 10, 10 kWh usable capacity, a
+//   widely deployed German home battery.
+// Container specs vary roughly 1-6+ MWh across vendors, this one
+// specific product is cited as a representative size, not claimed as
+// a universal industry standard.
+const CONTAINER_KWH_REFERENCE = 5015.96;
+const HOME_BATTERY_KWH_REFERENCE = 10;
+
+function formatGWhFromKwh(kwh) {
+  return `${Number(kwh / 1e6).toPrecision(2)} GWh`;
+}
+
+function renderStorageBlock() {
   const capacityKwh = cityTotalKwp * (scenarioBuildoutPct / 100) * STORAGE_KWH_PER_KW;
-  document.getElementById("storage-line").innerHTML =
-    `These rooftops would justify about <strong>${formatNumber(capacityKwh / 1000)} MWh</strong> of battery ` +
-    `storage, at 1.5 kWh per kW of solar (HTW Berlin).`;
+  const containers = capacityKwh / CONTAINER_KWH_REFERENCE;
+  const homeBatteries = capacityKwh / HOME_BATTERY_KWH_REFERENCE;
+
+  document.getElementById("storage-block").innerHTML = `
+    <p>These rooftops would justify about <strong>${formatGWhFromKwh(capacityKwh)}</strong> of storage, ` +
+    `at 1.5 kWh per kW of solar (HTW Berlin).</p>
+    <p>Roughly <strong>${formatNumber(containers)}</strong> grid-scale containers (a standard 20ft utility BESS, ` +
+    `about 5 MWh each), or about <strong>${formatNumber(homeBatteries)}</strong> home batteries (about 10 kWh each).</p>
+    <p>Duesseldorf has ${formatNumber(cityStorageUnitsTotal)} registered storage units today.</p>`;
 }
 
 // The hourly loss strip replaces the rated-vs-derated line chart
@@ -784,22 +851,47 @@ function renderLossStrip() {
     })
     .join("");
 
-  let caption = `Loss by hour, relative to the day's peak. Worst: ` +
+  document.getElementById("loss-strip-caption").textContent =
+    `Loss by hour, relative to the day's peak. Worst: ` +
     `${maxLossPct.toFixed(1)}% at ${String(worstHour).padStart(2, "0")}:00.`;
-  if (scenarioAcSurge) {
-    caption += ` Cooling demand runs an estimated +${AC_SURGE_PCT}% in the evening (France analogue, see (i)); ` +
-      `this does not change the generation loss shown above.`;
-  }
-  document.getElementById("loss-strip-caption").textContent = caption;
+}
+
+// The cooling balance (UX pass round three, commit 3): power, not
+// energy, at the heatwave day's own afternoon peak hour. Both sides are
+// MW; rooftop MW is that hour's already-precomputed derated output
+// (generation_scenarios.json, an hourly kWh figure numerically equal to
+// average kW for that hour), cooling MW is precomputed
+// (build_cooling_balance.py, data/cooling_balance.json) from
+// Duesseldorf's own household count and the Rosenow/Andreou method. No
+// new calculation here beyond a subtraction of two already-precomputed
+// numbers, the same pattern used throughout this file.
+function renderCoolingBalance() {
+  const c = generationData.citywide[scenarioKey()];
+  const balanceHour = coolingBalanceData.balance_hour;
+  const rooftopMw = c.hourly_derated_kwh[balanceHour] / 1000;
+  const level = coolingBalanceData.levels.find((l) => l.ac_ownership_pct === scenarioAcOwnershipPct);
+  const coolingMw = level.cooling_mw;
+  const remainingMw = rooftopMw - coolingMw;
+
+  const dayLabel = scenarioHeatwave ? "Heatwave afternoon" : "Normal-day afternoon";
+  const cov = coverageData.levels.find((l) => l.buildout_pct === scenarioBuildoutPct);
+  document.getElementById("cooling-balance-heading").textContent =
+    `${dayLabel}, ${String(balanceHour).padStart(2, "0")}:00, at ${cov.buildout_label} of roofs covered`;
+  document.getElementById("balance-cooling-label").textContent = `Cooling takes, at ${level.label} of homes`;
+  document.getElementById("balance-rooftop").textContent = `${formatNumber(rooftopMw)} MW`;
+  document.getElementById("balance-cooling").textContent = `${formatNumber(coolingMw)} MW`;
+  document.getElementById("balance-remaining").textContent = `${formatNumber(remainingMw)} MW`;
 }
 
 function updateScenarioView() {
-  if (!generationData || !coverageData || cityTotalKwp === null) return;
+  if (!generationData || !coverageData || !coolingBalanceData) return;
+  if (cityTotalKwp === null || cityStorageUnitsTotal === null) return;
   renderLevelAnswer();
   renderDerateLadder();
   renderScenarioHeadline();
   renderLossStrip();
-  renderStorageLine();
+  renderCoolingBalance();
+  renderStorageBlock();
 }
 
 document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
@@ -807,15 +899,18 @@ document.getElementById("toggle-heatwave").addEventListener("change", (e) => {
   updateScenarioView();
 });
 
-document.getElementById("toggle-ac-surge").addEventListener("change", (e) => {
-  scenarioAcSurge = e.target.checked;
-  updateScenarioView();
+document.querySelectorAll("#ac-ownership-steps .buildout-step").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    scenarioAcOwnershipPct = parseFloat(btn.dataset.pct);
+    document.querySelectorAll("#ac-ownership-steps .buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
+    updateScenarioView();
+  });
 });
 
-document.querySelectorAll(".buildout-step").forEach((btn) => {
+document.querySelectorAll("#buildout-steps .buildout-step").forEach((btn) => {
   btn.addEventListener("click", () => {
     scenarioBuildoutPct = parseFloat(btn.dataset.pct);
-    document.querySelectorAll(".buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
+    document.querySelectorAll("#buildout-steps .buildout-step").forEach((b) => b.classList.toggle("active", b === btn));
     updateScenarioView();
   });
 });
@@ -823,10 +918,12 @@ document.querySelectorAll(".buildout-step").forEach((btn) => {
 Promise.all([
   fetch("data/generation_scenarios.json").then((res) => res.json()),
   fetch("data/coverage.json").then((res) => res.json()),
+  fetch("data/cooling_balance.json").then((res) => res.json()),
 ])
-  .then(([gen, cov]) => {
+  .then(([gen, cov, cool]) => {
     generationData = gen;
     coverageData = cov;
+    coolingBalanceData = cool;
     updateScenarioView();
   })
   .catch((err) => {

@@ -44,10 +44,10 @@
         <h3>What counts as a suitable roof</h3>
         <p>A building qualifies once its roof faces sum to at least 10 kW. North-facing pitched faces are excluded. Flat roofs count, since panels on them are angled south regardless of the roof's raw tilt.</p>
         <h3>Where the numbers come from</h3>
-        <p>Roof potential: Solarkataster NRW. What is already installed: the Marktstammdatenregister, Germany's renewable energy registry. Weather, for the heatwave comparison: ERA5, via Open-Meteo. The city's own electricity use: Duesseldorf's Energie- und Treibhausgasbilanz 2022.</p>
-        <h3>The cooling-demand figure</h3>
-        <p>The cooling-demand toggle uses a France analogue: French evening electricity demand ran 25% above off-season levels during the 2025 heatwaves (IEA). German residential air conditioning ownership is too low for a domestic figure to exist, so this is the closest real comparison available, never a Duesseldorf measurement.</p>
-        <p>Supply above is modelled hour by hour from real ERA5 weather. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the cooling-demand surge is a single cited figure applied to a window, not a modelled curve.</p>
+        <p>Roof potential: Solarkataster NRW. What is already installed: the Marktstammdatenregister, Germany's renewable energy registry. Weather, for the heatwave comparison: ERA5, via Open-Meteo. The city's own electricity use: Duesseldorf's Energie- und Treibhausgasbilanz 2022. Duesseldorf's household count: the city's own Amt f&uuml;r Statistik und Wahlen.</p>
+        <h3>The cooling balance</h3>
+        <p>Only 6% of German households own air conditioning today (Umweltbundesamt), so the AC ownership control asks what happens as that share rises, at 50% and 90%. The cooling figure is computed bottom-up: Duesseldorf's own household count &times; AC ownership share &times; 3 kW per single-split unit &times; a 0.5 diversity factor (not every unit runs at once), method and both figures from Jan Rosenow, drawing on Andreou et al. 2020. This is power at one hour, the heatwave afternoon's own peak, never converted to energy over a day and never used to infer an hourly demand curve.</p>
+        <p>Supply above is modelled hour by hour from real ERA5 weather. Demand is not: there is no hourly electricity-consumption dataset for Duesseldorf, so the cooling balance is a single computed figure at one hour, not a modelled curve.</p>
       </div>
     </div>
     <div id="main-row" class="main-row">
@@ -83,49 +83,70 @@
       <aside id="side-panel" class="side-panel">
         <button type="button" id="panel-toggle" class="panel-toggle" title="See the stats and play with scenarios">Hide</button>
         <div id="side-panel-content" class="side-panel-content">
-          <div class="buildout-control" id="buildout-control">
-            <span class="buildout-control-label">Build-out</span>
-            <div class="buildout-steps" id="buildout-steps">
-              <button type="button" class="buildout-step active" data-pct="11.6" title="Today's measured rate, 11.6%">Today</button>
-              <button type="button" class="buildout-step" data-pct="30.0">30%</button>
-              <button type="button" class="buildout-step" data-pct="50.0">50%</button>
-              <button type="button" class="buildout-step" data-pct="100.0">100%</button>
-            </div>
-          </div>
-          <div class="level-answer" id="level-answer">
-            <h2 class="level-answer-heading" id="level-answer-heading">&hellip;</h2>
-            <div class="level-stats" id="level-stats"></div>
-          </div>
           <section id="scenario-panel" class="scenario-panel">
+
+            <!-- 1. The answer -->
+            <div class="level-answer" id="level-answer">
+              <h2 class="level-answer-heading" id="level-answer-heading">&hellip;</h2>
+              <div class="level-stats" id="level-stats"></div>
+            </div>
+
+            <!-- 2. The numbers -->
             <div class="scenario-heading">
               <h2>Normal day vs heatwave</h2>
               <p class="scenario-intro">Same rooftops, two conditions. How much energy on a normal day, how much on a heatwave day. A thought experiment, not a forecast.</p>
             </div>
-            <div class="scenario-controls">
+            <div class="derate-ladder" id="derate-ladder">Loading&hellip;</div>
+            <div class="loss-strip-wrap">
+              <div class="loss-strip" id="loss-strip"></div>
+              <div class="loss-strip-caption" id="loss-strip-caption"></div>
+            </div>
+            <div class="scenario-headline" id="scenario-headline"></div>
+
+            <!-- 3. The balance -->
+            <div class="cooling-balance" id="cooling-balance">
+              <h3 class="cooling-balance-heading" id="cooling-balance-heading">&hellip;</h3>
+              <table class="balance-table">
+                <tr><td class="label">Rooftops deliver</td><td class="value" id="balance-rooftop"></td></tr>
+                <tr><td class="label" id="balance-cooling-label">Cooling takes</td><td class="value" id="balance-cooling"></td></tr>
+                <tr><td class="label">Left for everything else</td><td class="value" id="balance-remaining"></td></tr>
+              </table>
+            </div>
+
+            <!-- 4. Storage -->
+            <div class="storage-block" id="storage-block">Loading&hellip;</div>
+
+            <!-- 5. Controls, last: everything above visibly changes when
+                 any of these change. -->
+            <div class="all-controls" id="all-controls">
+              <div class="buildout-control" id="buildout-control">
+                <span class="buildout-control-label">Build-out</span>
+                <div class="buildout-steps" id="buildout-steps">
+                  <button type="button" class="buildout-step active" data-pct="11.6" title="Today's measured rate, 11.6%">Today</button>
+                  <button type="button" class="buildout-step" data-pct="30.0">30%</button>
+                  <button type="button" class="buildout-step" data-pct="50.0">50%</button>
+                  <button type="button" class="buildout-step" data-pct="100.0">100%</button>
+                </div>
+              </div>
               <label class="scenario-toggle">
                 <input type="checkbox" id="toggle-heatwave">
                 <span>Heatwave (24&ndash;28 June 2026)</span>
               </label>
-              <label class="scenario-toggle">
-                <input type="checkbox" id="toggle-ac-surge">
-                <span>Cooling demand surge</span>
-              </label>
-            </div>
-            <div class="derate-ladder" id="derate-ladder">Loading&hellip;</div>
-            <div class="scenario-body">
-              <div class="loss-strip-wrap">
-                <div class="loss-strip" id="loss-strip"></div>
-                <div class="loss-strip-caption" id="loss-strip-caption"></div>
+              <div class="buildout-control" id="ac-ownership-control">
+                <span class="buildout-control-label">AC ownership</span>
+                <div class="buildout-steps" id="ac-ownership-steps">
+                  <button type="button" class="buildout-step active" data-pct="6" title="Today's German rate, Umweltbundesamt">6% (today)</button>
+                  <button type="button" class="buildout-step" data-pct="50">50%</button>
+                  <button type="button" class="buildout-step" data-pct="90">90%</button>
+                </div>
               </div>
-              <div class="scenario-headline" id="scenario-headline"></div>
-              <div class="storage-line" id="storage-line">Loading&hellip;</div>
             </div>
           </section>
         </div>
       </aside>
     </div>
     <footer id="footer">
-      Sources: Solarkataster NRW (opengeodata.nrw.de), Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025, and Landeshauptstadt Duesseldorf, Energie- und Treibhausgasbilanz 2022.
+      Sources: Solarkataster NRW (opengeodata.nrw.de), Open Data Duesseldorf, Stadtteilgrenzen Duesseldorf 2025, Landeshauptstadt Duesseldorf, Energie- und Treibhausgasbilanz 2022, and Amt f&uuml;r Statistik und Wahlen.
     </footer>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
