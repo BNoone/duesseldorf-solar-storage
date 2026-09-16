@@ -233,6 +233,7 @@ function districtTooltipHtml(props) {
 // sentence that used to sit under these moved into the (i) panel, it
 // never belonged in a stats strip.
 let cityTotalKwp = null;
+let cityStorageUnitsTotal = null;
 
 function updateCityStrip(features, properties) {
   const totalKwp = features.reduce((sum, f) => sum + f.properties.total_kwp, 0);
@@ -520,6 +521,8 @@ fetch("data/storage_duesseldorf.json")
     });
 
     document.getElementById("storage-note").textContent = data.properties.citywide_note;
+    cityStorageUnitsTotal = data.properties.citywide_total_units;
+    if (cityTotalKwp !== null && generationData) updateScenarioView();
 
     document.getElementById("layer-storage-dus").addEventListener("change", (e) => {
       if (e.target.checked) {
@@ -723,19 +726,42 @@ function renderScenarioHeadline() {
     `${c.avg_daylight_derate_pct}%.`;
 }
 
-// Storage cut down to one line (UX pass round two, commit 4): the
-// battery-dispatch table (shiftable kWh, evening multiples) is gone,
-// see SCOPE.md v3.2. No ratios, no hour windows, no dispatch story, just
-// the capacity these rooftops would justify at the selected build-out
-// level, 1.5 kWh per kW of solar (HTW Berlin upper bound, SCOPE.md
-// section 3), a fact stated, not an argument made.
+// Storage as a count (UX pass round two commit 4 cut the battery-dispatch
+// table down to one line; round three commit 4 cuts shifting/dispatch
+// entirely, out of scope, replaced with three plain facts, no ratios).
+// Capacity: 1.5 kWh per kW of solar (HTW Berlin upper bound, SCOPE.md
+// section 3), scales with the selected build-out level.
 const STORAGE_KWH_PER_KW = 1.5;
 
-function renderStorageLine() {
+// Reference sizes to make the capacity figure legible as a count, not
+// just an abstract GWh. Both are real published specs, not invented
+// round numbers:
+//   Grid-scale container: AceOn Group eTRON BESS, a standard 20ft
+//   utility BESS container, nameplate 5,015.96 kWh.
+//   https://www.aceongroup.com/battery-storage-products/battery-storage-systems/5mwh-battery-energy-storage-system/
+//   Home battery: sonnenBatterie eco 10, 10 kWh usable capacity, a
+//   widely deployed German home battery.
+// Container specs vary roughly 1-6+ MWh across vendors, this one
+// specific product is cited as a representative size, not claimed as
+// a universal industry standard.
+const CONTAINER_KWH_REFERENCE = 5015.96;
+const HOME_BATTERY_KWH_REFERENCE = 10;
+
+function formatGWhFromKwh(kwh) {
+  return `${Number(kwh / 1e6).toPrecision(2)} GWh`;
+}
+
+function renderStorageBlock() {
   const capacityKwh = cityTotalKwp * (scenarioBuildoutPct / 100) * STORAGE_KWH_PER_KW;
-  document.getElementById("storage-line").innerHTML =
-    `These rooftops would justify about <strong>${formatNumber(capacityKwh / 1000)} MWh</strong> of battery ` +
-    `storage, at 1.5 kWh per kW of solar (HTW Berlin).`;
+  const containers = capacityKwh / CONTAINER_KWH_REFERENCE;
+  const homeBatteries = capacityKwh / HOME_BATTERY_KWH_REFERENCE;
+
+  document.getElementById("storage-block").innerHTML = `
+    <p>These rooftops would justify about <strong>${formatGWhFromKwh(capacityKwh)}</strong> of storage, ` +
+    `at 1.5 kWh per kW of solar (HTW Berlin).</p>
+    <p>Roughly <strong>${formatNumber(containers)}</strong> grid-scale containers (a standard 20ft utility BESS, ` +
+    `about 5 MWh each), or about <strong>${formatNumber(homeBatteries)}</strong> home batteries (about 10 kWh each).</p>
+    <p>Duesseldorf has ${formatNumber(cityStorageUnitsTotal)} registered storage units today.</p>`;
 }
 
 // The hourly loss strip replaces the rated-vs-derated line chart
@@ -817,13 +843,14 @@ function renderCoolingBalance() {
 }
 
 function updateScenarioView() {
-  if (!generationData || !coverageData || !coolingBalanceData || cityTotalKwp === null) return;
+  if (!generationData || !coverageData || !coolingBalanceData) return;
+  if (cityTotalKwp === null || cityStorageUnitsTotal === null) return;
   renderLevelAnswer();
   renderDerateLadder();
   renderScenarioHeadline();
   renderLossStrip();
   renderCoolingBalance();
-  renderStorageLine();
+  renderStorageBlock();
 }
 
 document.getElementById("toggle-heatwave").addEventListener("change", (e) => {

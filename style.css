@@ -742,7 +742,7 @@ footer a {
   white-space: nowrap;
 }
 
-.storage-line {
+.storage-block {
   font-size: 12px;
   color: #1f2933;
   line-height: 1.6;
@@ -751,7 +751,17 @@ footer a {
   border-top: 1px solid #ececea;
 }
 
-.storage-line strong {
+.storage-block p {
+  margin: 0 0 4px 0;
+}
+
+.storage-block p:last-child {
+  margin-bottom: 0;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.storage-block strong {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
