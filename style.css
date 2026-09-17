@@ -84,6 +84,28 @@ header h1 {
   margin-top: 2px;
 }
 
+.map-legend-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 0 0;
+  font-size: 11px;
+  color: #8a8f98;
+}
+
+.legend-swatch {
+  display: inline-flex;
+  width: 60px;
+  height: 10px;
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.legend-swatch span {
+  flex: 1 1 0;
+}
+
 .info-modal {
   position: fixed;
   inset: 0;
