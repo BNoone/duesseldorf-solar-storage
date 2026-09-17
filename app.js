@@ -4,6 +4,17 @@ const DEFAULT_ZOOM = 12;
 // ColorBrewer "Oranges", 5-class sequential single-hue scale.
 const CHOROPLETH_COLORS = ["#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"];
 
+// Commit 6 (UX pass round four): nothing on screen said what the district
+// colour meant or that hovering one shows its numbers. This small swatch,
+// under the header stats, renders straight from CHOROPLETH_COLORS so it
+// can never show a scale the map itself does not use.
+function renderLegendSwatch() {
+  document.getElementById("legend-swatch").innerHTML = CHOROPLETH_COLORS
+    .map((c) => `<span style="background:${c}"></span>`)
+    .join("");
+}
+renderLegendSwatch();
+
 // Roof-quality bands on the cadastre's own kwh_kwp (capacity-weighted
 // specific yield), set once from the real citywide distribution and
 // fixed (scripts/compute_roof_quality_bands.py, common.py). Absolute

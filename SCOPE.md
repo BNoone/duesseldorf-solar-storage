@@ -1,15 +1,17 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v3.4
+# Duesseldorf Solar + Storage Potential Map · Scope v3.5
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-16 (v3.4, see Changelog)
+**Amended:** 2026-09-16 (v3.5, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
 ---
 
 ## 0. Changelog
+
+**v3.5 (2026-09-16):** one commit, added after v3.4 shipped. The map coloured districts but nothing on screen said what the colour meant, and the hover tooltip was undiscoverable, nothing invited it. A one-line hint now sits under the header stats: "Darker districts have more rooftop solar possible. Hover one for its numbers.", with a small five-step swatch before it, rendered straight from `CHOROPLETH_COLORS` (`app.js`) so it can never show a scale the map itself does not use. No numbers, no units, not a legend block; the sentence carries the explanation, the swatch is only a visual hint. Replaces nothing else; the hover tooltips are unchanged.
 
 **v3.4 (2026-09-16):** a fourth UX pass, five commits. Two real bugs found and fixed (a derate-percentage baseline mismatch, a power-vs-energy storage comparison); two commits verified already done from round three and shipped with no new code.
 
@@ -62,6 +64,8 @@ Before shipping any of it: verified the "3,049 GWh" 2022 electricity consumption
 Also cut: the rated-vs-derated line chart (Chart.js). Diagnosis, so this is not repeated: the chart was correct, 24 points, a real zero-based axis, not the reported "growing/exponential" shape. The actual problem was scale: a 5.3% heatwave-vs-normal difference is invisible on a 0-to-~93,000-kWh axis, rendering as two hairline-apart curves. Replaced with an hourly loss strip (commit 1 below) that plots the derate percentage directly instead of two near-identical absolute curves, which is the shape that actually needed to be legible.
 
 The header is four labelled figures in the city-level unit tier (1.4 GW possible, 1.1 TWh a year, 0.16 GW built, 11.6% used) instead of a run-on sentence mixing kWp and MWh, under a subtitle that states the page's actual question. An (i) button opens a modal holding what used to clutter the header: what the page models, the suitability rule, data sources, and the cooling-demand France analogue with its caveat. Units are now tiered and enforced: city level GW/TWh, district level MW/GWh, building level kW/kWh, never mixed on one screen.
+
+**Below the header stats, a one-line legend hint (v3.5):** a small five-step swatch, light to dark, then "Darker districts have more rooftop solar possible. Hover one for its numbers." The map coloured districts with nothing on screen saying what the colour meant, and the hover tooltip itself was undiscoverable, nothing on the page invited it. Not a legend block, no numbers or units on the hint itself; the swatch renders directly from `CHOROPLETH_COLORS` (`app.js`) so it can never show a scale the map does not actually use. The hover tooltips are unchanged.
 
 The screen splits map (about 70%) and the scenario panel (about 30%), side by side, panel open by default, a "Hide" toggle collapsing it to a narrow tab rather than hiding its content behind a control someone has to find. The panel's very first line now answers the subtitle directly (full build-out coverage, and what it drops to on the hottest days, both precomputed from figures already verified elsewhere on the page, see section 4), before any other number.
 
