@@ -1,129 +1,55 @@
-# Duesseldorf Solar + Storage Potential
+# Düsseldorf Solar + Storage Potential
 
-One web page, one map of Duesseldorf. It answers one question: if every suitable roof in the city carried solar, how much would it generate, and what does heat do to that?
+### ▶ [Open the live map](https://bnoone.github.io/duesseldorf-solar-storage/)
 
-The core scenario is every qualifying roof carrying solar; a build-out control also scales that down to today's measured rate, 30%, or 50%, so a visitor can see the potential at less than full build-out too. A real heatwave is then applied on top of the selected build-out, to show how much panels lose to heat, and what that means for a cooling load competing with the same rooftops for electricity. Existing installations (from Germany's own renewable energy registry) are shown alongside as context, to compute a realization rate, never as an input to the potential model itself. It is a portfolio piece, not a research paper or a planning tool: it has to load fast, look competent, and every number on it has to trace to a script in this repo and a named public source.
+One web page, one map, one question: if every suitable roof in Düsseldorf
+carried solar, how much would it generate, and what does heat do to that?
 
-Full plan, decisions, and the reasoning behind them: [SCOPE.md](SCOPE.md). Read that first; it is the authority this README is checked against.
+Built from three public datasets. Every number on the page traces to a script
+in this repo and a named public source.
 
-## Live site
+## What it found
 
-https://bnoone.github.io/duesseldorf-solar-storage/
+- **1.39 GW** of rooftop solar is physically possible in Düsseldorf.
+  **0.16 GW** is built. That is **11.6%**.
+- At full build-out, rooftops would generate **1.12 TWh** a year, covering
+  **36.6%** of the city's electricity, and roughly equal to what all
+  Düsseldorf households use.
+- Panels lose about **6%** of their rated output to heat on any clear summer
+  day. During the 24 to 28 June 2026 heatwave, closer to **11%**.
+- The city has around **7,000 registered batteries**. Almost all are home
+  units in basements. Exactly **one** is above 1 MW, and it is not built yet.
 
-The header reads "Düsseldorf Solar & BESS potential" (with the city's name spelled with its umlaut on the page itself, the one place in the repo that does; everywhere else, including this README, uses the plain ASCII spelling). A four-figure strip below it answers the potential question, an (i) button explains the model, and the screen below it splits map (about 70%) and a scenario panel (about 30%), open by default; a "Hide" button collapses the panel to a narrow tab rather than hiding its content behind a control someone has to discover first. The panel is in a fixed order now (UX pass round four, commit 1): the answer first, one sentence stating the selected build-out level's annual generation, its share of city consumption, and the storage it would justify; then a "normal day vs heatwave" heading and intro; then a two-row numbers table (normal summer day, heatwave day), each row's own MWh figure and percentage lost to derate measured against the same baseline, the lab rating; then the three controls (build-out, heatwave, AC ownership) grouped together; then the hourly loss strip, with hour labels (00/06/12/18/23) beneath it. Everything above the controls updates when a control changes. The cooling balance and the fuller storage explanation follow as trailing sections. The map itself never changes with any of it, it stays roof potential, hover for detail instead of a legend. Click a Stadtteil to see every qualifying building, coloured by roof quality, plus the postcodes it sits in and their own exact PV, realization, and storage figures. Toggle the storage layer to see Duesseldorf's large battery units and NRW's for scale.
-The header states the potential in four figures (possible capacity, annual generation, what is built already, realization), the map shows roof potential by Stadtteil (neighbourhood), and a side panel runs the heatwave scenario: today's answer first, then a normal-day-versus-heatwave comparison, the controls, and an hourly loss strip. Click a Stadtteil to see its own qualifying buildings and the postcodes it overlaps.
+## Data
 
-## The three data sources
+| Source | Provides |
+|---|---|
+| [Solarkataster NRW](https://www.opengeodata.nrw.de/produkte/umwelt_klima/energie/solarkataster/photovoltaik/) | Roof geometry, tilt, orientation, theoretical kWp and yield |
+| [Marktstammdatenregister](https://www.marktstammdatenregister.de/) | Every registered PV and battery unit in Germany |
+| [ERA5 via Open-Meteo](https://open-meteo.com/en/docs/historical-weather-api) | Hourly irradiance and air temperature |
 
-Everything on the site traces back to exactly three public datasets, each providing a different kind of fact. Nothing is estimated from a fourth source or from a model of a model.
+Plus [Stadtteil boundaries](https://opendata.duesseldorf.de/dataset/stadtteile-d%C3%BCsseldorf)
+from Open Data Düsseldorf, and city electricity consumption from Düsseldorf's
+own [Energie- und Treibhausgasbilanz 2022](https://www.duesseldorf.de/fileadmin/Amt19/umweltamt/klimaschutz/pdf/klimaschutz/19_Klimafreundliches_Duesseldorf_2022_web_bf.pdf).
 
-1. **Solarkataster NRW** (opengeodata.nrw.de), a roof-by-roof PV potential cadastre for the state of North Rhine-Westphalia. For every roof facet in Duesseldorf it gives geometry, tilt, compass direction, theoretical kWp, and theoretical annual yield at a fixed panel efficiency. This is the only source for **potential**: it carries no field of any kind indicating whether a roof already has solar installed. Downloaded as a shapefile, roughly 98 MB, ~306,000 facets across ~142,000 buildings in Duesseldorf.
-2. **Marktstammdatenregister (MaStR)**, Germany's renewable energy registry. This is the only source for **what is already built**: every registered PV and battery storage unit in the country, with capacity, technology, commissioning status, and location, addressed by postcode always and by coordinates only for larger installations. Pulled locally via the `open-mastr` package into a SQLite database (several GB, one-time download).
-3. **ERA5**, via the Open-Meteo Historical Weather API, a reanalysis weather dataset. This is the only source for **weather**: hourly irradiance (global tilted irradiance, the input a solar panel actually sees) and air temperature, fetched once per Stadtteil centroid (50 locations) for the full year 2025 and for June 2026, the month of the heatwave this site models.
+## How it works
 
-## The roof rule
+Python precomputes every scenario into static JSON. The browser only displays
+a precomputed value. Plain HTML, vanilla JavaScript, Leaflet for the map.
+No framework, no build step, no backend.
 
-A roof counts as suitable if its **building** clears 10 kWp once its qualifying facets are summed, never tested per facet. A typical pitched roof splits into two or more facets of a few kWp each; testing 10 kWp against a single facet would exclude most ordinary houses even though the building as a whole clearly qualifies. Facets are summed by the cadastre's own building key (`geb_id`) before the 10 kWp test.
-
-A facet qualifies for that sum unless it is a **north-facing pitched roof face** (the cadastre's own compass field, checked before the building sum). East and west-facing facets stay, that is standard practice. Flat roofs always stay regardless of their raw surface tilt, since real installations on flat roofs are racked to face south.
-
-Within the qualifying set, buildings are ranked and colour-coded by the cadastre's own **`kwh_kwp`** (capacity-weighted specific yield: a building's total annual yield divided by its total kWp), bucketed into three fixed, citywide thresholds (Fair, Good, Excellent) set once from the real distribution, not recomputed per neighbourhood, so "Good" means the same roof quality in every Stadtteil.
-
-- `index.html` / `app.js` / `style.css`: the map. Plain HTML, vanilla JavaScript, Leaflet from a CDN, OpenStreetMap tiles. No build step, no framework.
-- The Stadtteil layer, the only geography on the map: filled polygons coloured by total roof potential (kWp), a quantile-binned sequential scale (ColorBrewer Oranges, 5 classes) rather than a linear one, since Bilk's 89,536 kWp against Knittkuhl's 3,863 kWp would flatten a linear scale's middle. Fill opacity scales with zoom (UX pass round three, commit 5): about 0.7 at city level (zoom 11-12), fading to about 0.2 by zoom 15, so the colour pattern reads clearly zoomed out but does not obscure streets and buildings once a visitor zooms in; borders stay at full opacity throughout, the one thing that must stay readable once the fill has faded, restyled on Leaflet's `zoomend`. No legend block: a one-line hint under the header stats (UX pass round four, commit 6) states what the colour means and that hovering shows numbers, "Darker districts have more rooftop solar possible. Hover one for its numbers.", with a small five-step swatch rendered directly from the same `CHOROPLETH_COLORS` array the map itself uses, so it can never show a scale the map does not; no numbers or units on the hint itself, since hovering a district shows its own name, possible capacity (MW), and qualifying building count directly, so a visitor never has to cross-reference a corner key; only one district tooltip is ever on screen (a real pile-up, six or more stacked over the city centre on quick hovers, is fixed by explicitly closing the previous tooltip rather than trusting Leaflet's own tracking, which can lose it when `bringToFront()` reorders the hovered path's DOM node mid-hover). Built (installed) capacity is deliberately left out of the hover, MaStR only reliably geocodes to postcode, not Stadtteil, and apportioning it by roof-potential share was tried once and rejected as unsound; postcode-level installed capacity is still exact, in the drill-down panel. The 15 largest districts by area also carry a permanent label, so the map reads as named neighbourhoods without needing to hover each one. The city strip, and the footer pull date, are read live from `data/stadtteile.json`, not hardcoded.
-- The map's initial zoom is fixed after load: header and footer text (which affects the map container's flex height) is written to the DOM before `map.invalidateSize()` and `map.fitBounds()` run, and both are deferred to a `requestAnimationFrame` so Leaflet measures the container after the browser has finished laying it out, not before.
-- The header is a four-figure city strip, not a sentence: possible capacity (GW), what it would generate a year (TWh), built so far (GW), and realization (%), all in the city-level unit tier. Every number on it is read live from `data/stadtteile.json`, not hardcoded. An (i) button next to the title opens a modal with what the page models, the suitability rule, where the numbers come from, the cooling-balance method and its two citations, and the supply-versus-demand asymmetry note, so the header stays four numbers and nothing else.
-- Units are tiered and enforced everywhere, never more than four digits before the decimal, never mixed on one screen: city level GW and TWh/year, district level MW and GWh/year, building level kW and kWh/year, scenario-panel day figures in MWh.
-- The footer cites Duesseldorf's own Energie- und Treibhausgasbilanz 2022 (with a link), the source for the city electricity consumption figure driving every coverage percentage on the panel. Verified against the actual PDF (page 14, table "Energieverbrauch in GWh", row "Strom") before it was ever cited, not recalled from an earlier session's memory; see SCOPE.md v3.1.
-- The building drill-down: clicking a Stadtteil hides the choropleth, loads that Stadtteil's `data/roofs/<slug>.json` on demand, and draws every qualifying building, coloured by roof quality (Fair / Good / Excellent), the cadastre's own kwh_kwp bucketed into three fixed, citywide thresholds, not per-district quantiles, so "Good" means the same thing everywhere (the old top-20-by-yield gold highlight is gone, never explained on the page). A panel shows that Stadtteil's own numbers, in the district-level unit tier (roof potential in MW, annual yield in GWh, battery potential in MWh, qualifying buildings as a count), plus the suitability rule in one sentence, so the city-wide header stays visible and a visitor never loses context. The postcode breakdown inside the same panel uses the same tier (installed PV and postcode potential in MW). A back button restores the citywide view. Clicking a building opens a popup in plain language (space for solar, what it would generate a year, roof quality; no "specific yield", no facet count), with an (i) toggle explaining what counts as a qualifying building.
-- The postcode breakdown, inside the same panel: every postcode the clicked Stadtteil overlaps, ordered by that postcode's share of the Stadtteil's own roof potential, each with its own exact installed PV, own roof potential, own realization rate, and registered storage (units and kWh), never apportioned to the neighbourhood. Headline reads "Mostly in postcode 40233" when one postcode holds 70% or more of the Stadtteil's potential, otherwise "Spans 40213, 40210, 40211". A one-sentence note explains why: the national registry publishes no location finer than postcode for systems under 30 kWp. There is no per-Stadtteil realization rate anywhere on the page; see SCOPE.md's v2.3 changelog for why that was rejected.
-- `data/stadtteile.json`: per-Stadtteil roof potential, precomputed. North-facing pitched facets are excluded before the building sum, see `build_stadtteile.py`.
-- `data/roofs/<slug>.json`: one file per Stadtteil, every qualifying building in it (geometry, kWp, kWh, capacity-weighted kwh_kwp, facet count, and a `highlighted` flag for the old top-20-by-yield set the page no longer renders, left in the data rather than reshaping the file for a presentation-only change), loaded only when that Stadtteil is clicked, never all 50 at once. 50 files, 17 MB total, largest (Bilk) just under 1 MB. Buildings with more than 15 vertices after simplification (mostly large apartment blocks and factory complexes) are shown as a convex hull instead of their exact outline, since exact shape at that scale cost far more file size than it was worth.
-- The storage layer, off by default, toggled from the "BESS overview" box (renamed from "Layers", UX pass round two; moved from top-left to bottom-left in round three commit 6, it used to sit over the city centre; re-verified still bottom-left in round four commit 5, no change needed): the 6 Duesseldorf storage units above 100 kW, plotted at their real coordinates, sized roughly by capacity so the planned 10 MW unit in PLZ 40549 is unmistakably the largest object on the layer. It is drawn with a dashed outline and low fill opacity rather than solid fill. Hovering a dot shows its capacity, chemistry, commissioning year, and status (including "Not yet built, In Planung" for the planned unit) in a small tooltip, the same interaction pattern as the district hover, not a click-for-popup. A second toggle shows NRW-wide units above 1 MW as small grey dots for scale, with a note that most of them sit outside Duesseldorf and need zooming out to see. Home batteries (the other 7,019 Duesseldorf units) are never plotted; their counts and kWh appear as postcode facts in the Stadtteil panel instead, same pattern as PV. The panel's own explanatory paragraph (citywide unit count, combined capacity in both kW and MWh usable, and the coordinate limitation) stays visible in the "BESS overview" box, not moved into the (i): it is the honest reason only six dots appear.
-- `data/storage_duesseldorf.json` / `data/storage_nrw_large.json`: the two storage map datasets above, precomputed from the local MaStR pull.
-- `data/plz.json`: each Duesseldorf postcode's own exact roof potential, registered PV, realization, and registered storage (units and kWh). Not a map layer, carries no geometry; it exists only to feed the postcode breakdown below.
-- `data/postcode_facts.json`: the Stadtteil-to-postcode breakdown itself, one entry per Stadtteil, each an ordered list of the postcodes it overlaps with their own facts attached from `data/plz.json`.
-- The scenario panel, in the side column: same rooftops, two conditions. A two-row numbers table (UX pass round four, commit 1, replaces round two's three-step ladder) states the normal summer day and the heatwave day, each with its own MWh figure and its own percentage lost to derate, both measured against the same baseline, the lab rating; a fixed bug from the earlier version, where the heatwave row's percentage was measured against the normal day instead, so the two percentages could not be compared. The lab rating itself is stated in the table's own caption sentence, not as a third row. Below it, an hourly loss strip: 24 blocks, one per hour, shaded by that hour's own share of the day's worst derate, with hour labels (00/06/12/18/23, round four commit 3) beneath the blocks and the worst hour labelled underneath. Hovering a block shows a custom tooltip (that hour, its loss percent, and its own MWh production), replacing an earlier plain HTML `title` attribute that meant a slow, unstyled system tooltip; the new one matches the dark, instant tooltip style used for the district and storage-dot hovers, and its horizontal position is clamped to the panel's own width so it cannot overflow at either end of the strip. Replaced the earlier rated-vs-derated line chart (Chart.js, removed, nothing else used the library): the chart was correct, 24 points, a real zero-based axis, the actual problem was that a roughly 5% difference is invisible on a ~93,000 kWh axis, rendering as two hairline-apart curves. The strip plots the derate percentage directly instead. Exactly three controls, grouped together in the panel's fixed order (UX pass round four, commit 1), change every number above them, none of them on the map, all read from precomputed JSON, nothing computed in the browser: a heatwave on/off toggle (Duesseldorf's own 24-28 June 2026 window against a matched normal day), a four-step build-out control ("Today", the current 11.6% measured rate, then 30/50/100%), and a three-step AC ownership control (6% today, 50%, 90%, UX pass round three commit 3, replaces an earlier on/off "cooling demand surge" toggle) driving "the balance": rooftops deliver vs cooling takes vs what's left, in MW, at the heatwave day's own afternoon peak hour (15:00), not energy over a day and not an inferred demand curve. The cooling figure is bottom-up, Duesseldorf's own household count (the city's own statistics office) times AC ownership share times 3 kW per single-split unit times a 0.5 diversity factor, method and both figures from Jan Rosenow (drawing on Andreou et al. 2020); German AC ownership today, 6%, is Umweltbundesamt.
-- `data/generation_scenarios.json` / `data/coverage.json` / `data/battery_case.json`: the three scenario-panel datasets, described under Reproducing the data below.
-Citywide, this rule qualifies 48,475 buildings, 1,392,501 kWp of potential, 1,115,838 MWh of annual yield, an 801.3 kWh/kWp capacity-weighted specific yield. Against 161,328 kWp registered (MaStR), that is 11.6% realization.
-
-## Geography: Stadtteil only
-
-**Stadtteil (Duesseldorf's 50 official neighbourhoods) is the only shape drawn on the map.** The Solarkataster's geometry is exact, so every building can be reliably placed in its Stadtteil by a point-in-polygon join.
-
-Existing installations cannot be placed the same way. MaStR's coordinate field is sparse and sparse by installation size, not randomly: essentially 0% of PV units under 30 kWp carry coordinates, versus 86-100% at 30 kWp and above (the pattern is the same for storage, 0.4% overall). Spatial-joining installations onto Stadtteil shapes by coordinate would keep the handful of commercial systems and silently erase almost the entire residential fleet, the majority of units. What MaStR does carry reliably, for every unit, is its postcode (`Postleitzahl`).
-
-So installed capacity, realization, and registered storage are never estimated at Stadtteil level. They are shown as **postcode facts**, exact MaStR numbers attributed to their own postcode, inside the panel of whichever Stadtteil overlaps that postcode. A Stadtteil typically overlaps more than one postcode and a postcode typically overlaps more than one Stadtteil, so apportioning a postcode's installed capacity across the Stadtteile it touches, weighted by roof potential, would rest on an assumption (that PV uptake is proportional to roof potential within a postcode) with no empirical support, and it would be weakest in exactly the dense central neighbourhoods a visitor is most likely to click. Rather than estimate a per-Stadtteil realization rate on that assumption, the site states postcode figures as postcode figures and leaves it there.
-
-## The heatwave derate model
-
-Solar panels lose output as they heat up. The site models this with the standard NOCT (nominal operating cell temperature) approach, applied to the panel's **cell** temperature, not the surrounding air temperature (using air temperature directly would understate the effect roughly fourfold):
-
-```
-T_cell = T_air + (NOCT - 20) / 800 * GTI      (NOCT = 45 degC)
-derate = max(0, (T_cell - 25) * 0.35%)
-```
-
-The 0.35%/degC coefficient is a point estimate; the page also states the realistic range, -0.29 to -0.40%/degC, since a city's roof stock spans many module ages and manufacturers. No efficiency gain is modelled below 25 degC.
-
-Duesseldorf's own heatwave window was found from ERA5 rather than assumed to match national headlines: 24-28 June 2026, worst day 26 June at 38.1 degC citywide mean. It is compared against a matched normal day, 25 August 2025, chosen by searching 2025's summer for the day whose citywide irradiance total is closest to the heatwave's, so the comparison isolates heat rather than also measuring cloud cover.
-
-**Both the normal day's and the heatwave day's derate are stated as a percentage lost against the same baseline: the panel's lab rating (its undegraded output at 25 degC).** An earlier version of this comparison measured the two days against different baselines (the heatwave day against the normal day's own output, not the lab rating), which made the two percentages read as comparable when they were not. Both now share one baseline, so they can be read side by side honestly.
-
-## City electricity consumption
-
-Every "share of the city's electricity" figure on the site is computed against one number: **3,049 GWh**, Duesseldorf's total electricity consumption in 2022.
-
-Source: Landeshauptstadt Duesseldorf, *Energie- und Treibhausgasbilanz 2022* (Amt fuer Umwelt- und Verbraucherschutz), page 14, table "Energieverbrauch in GWh", row "Strom", summed across the report's own four sectors as it presents them (GHDI 1,599 + KE 107 + HH 1,171 + V 172 = 3,049 GWh). Verified against the actual source PDF before use, not recalled from memory. [PDF](https://www.duesseldorf.de/fileadmin/Amt19/umweltamt/klimaschutz/pdf/klimaschutz/19_Klimafreundliches_Duesseldorf_2022_web_bf.pdf)
-
-## What is deliberately out of scope
-
-- **Economics.** No capex, no tariffs, no payback, no ROI. This site states physical potential, not a financial case; adding one would need cost assumptions this project has no authority to pick.
-- **Dispatch and storage shifting.** No charge and discharge schedules, no round-trip efficiency, no comparing battery sizes by how much midday surplus they can shift to the evening. Storage appears only as a capacity this much solar would justify, a plain fact, not an argument about how it would be operated.
-- **Load profiles and self-consumption modelling.** German standard load profiles (BDEW) are public and could support this, but modelling actual household demand doubles the modelling surface for a project that is about rooftop potential, not household operation. Excluded by choice, not by data availability.
-- **Multi-year climate averaging.** The site names two specific, checked years (2025 for annual generation, June 2026 for the heatwave) rather than an averaged "typical year", so a reader always knows exactly which real weather produced a given number.
-
-Anything outside Duesseldorf, and any frontend framework or build step, are out of scope for the same reason: this is a static site with one clear subject.
-
-## Rebuilding the data
-
-Requires Python 3 and the packages in `requirements.txt`. From a clean checkout, this one sequence rebuilds every data file the site reads, in dependency order, with no manual steps or hand-edited paths:
+## Rebuilding
 
 ```bash
 pip install -r requirements.txt
-python3 scripts/fetch_solarkataster.py
-python3 scripts/fetch_stadtteile.py
-python3 scripts/fetch_plz_boundaries.py
-python3 scripts/fetch_mastr.py
-python3 scripts/build_stadtteile.py
-python3 scripts/build_roofs.py
-python3 scripts/compute_roof_quality_bands.py
-python3 scripts/build_storage.py
-python3 scripts/build_plz.py
-python3 scripts/build_postcode_facts.py
-python3 scripts/fetch_era5.py
-python3 scripts/find_heatwave_window.py
-python3 scripts/build_generation.py
-python3 scripts/build_coverage.py
-python3 scripts/build_cooling_balance.py
+bash scripts/rebuild_all.sh
 ```
 
-- `fetch_solarkataster.py` downloads the Duesseldorf roof-potential shapefile (opengeodata.nrw.de, skips if already present).
-- `fetch_stadtteile.py` downloads the 50 Stadtteil boundaries (Open Data Duesseldorf).
-- `fetch_plz_boundaries.py` downloads Germany's postcode boundaries (yetzt/postleitzahlen, OSM-derived) and keeps Duesseldorf's 37 postcodes; used only to join buildings to a postcode, never drawn on the map.
-- `fetch_mastr.py` bulk-downloads the MaStR storage, solar, and `storage_units` tables via `open-mastr` into a local SQLite database (several GB, 15-30 minutes on a first run). `storage_units` is not optional: it is the only place a battery's usable kWh actually lives.
-- `build_stadtteile.py` applies the roof rule, spatial-joins buildings to Stadtteile, and writes `data/stadtteile.json`.
-- `build_roofs.py` writes one file per Stadtteil under `data/roofs/`, every qualifying building's geometry and figures, loaded on demand when that Stadtteil is clicked.
-- `compute_roof_quality_bands.py` sets the fixed Fair/Good/Excellent `kwh_kwp` thresholds from the real citywide distribution. Writes no data file; re-run only if the underlying roof data changes.
-- `build_storage.py` queries MaStR for Duesseldorf's large storage units, an NRW-wide layer for scale, and the citywide unit count, kW, and usable kWh.
-- `build_plz.py` aggregates the same building-level potential to postcode and joins registered PV and storage from MaStR's `Postleitzahl` field. Writes `data/plz.json`, no geometry.
-- `build_postcode_facts.py` joins Stadtteil and postcode together and writes `data/postcode_facts.json`, the breakdown shown in each Stadtteil's panel.
-- `fetch_era5.py` fetches hourly irradiance and temperature for all 50 Stadtteil centroids, full year 2025 plus June 2026 (about 100 calls, checkpointed so a rerun after a network failure does not re-fetch what it already has).
-- `find_heatwave_window.py` finds Duesseldorf's own heatwave window and matched normal day from that data.
-- `build_generation.py` computes hourly rated and derated generation for both days across every build-out level. Writes `data/generation_scenarios.json`.
-- `build_coverage.py` sets annual generation at each build-out level against the city's 3,049 GWh consumption figure. Writes `data/coverage.json`.
-- `build_cooling_balance.py` computes the cooling side of the heatwave-afternoon balance shown in the panel. Writes `data/cooling_balance.json`.
+Full script-by-script detail in [METHOD.md](METHOD.md).
 
-Downloaded source files land in `data/raw/`, gitignored, not committed. `scripts/common.py` holds the constants and rules shared across these scripts (the roof rule, the derate model, the found heatwave window), so a change to any of them lives in one place.
+## Documentation
 
-**Python precomputes everything; the browser only displays a precomputed value.** GitHub Pages serves static files and cannot run Python, so every scenario the panel can show is calculated once by these scripts and written to static JSON in `/data`. The site itself is `index.html`, `app.js`, and `style.css`: plain HTML, vanilla JavaScript, and Leaflet for the map, no framework and no build step.
+- **[METHOD.md](METHOD.md)** — the roof rule, the derate model, the geography
+  decision, and how each data file is produced.
+- **[SCOPE.md](SCOPE.md)** — what this project does and deliberately does not
+  do, and why. The authority both other documents are checked against.
