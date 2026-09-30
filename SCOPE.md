@@ -1,15 +1,27 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v3.6
+# Duesseldorf Solar + Storage Potential Map · Scope v3.7
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-30 (v3.6, see Changelog)
+**Amended:** 2026-09-30 (v3.7, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
 ---
 
 ## 0. Changelog
+
+**v3.7 (2026-09-30): mobile layout, one commit, presentation only, no data or scope changes.** Mobile moves from optional to required (section 10): this now goes in front of LinkedIn traffic, most of it phones, and the desktop 70/30 map-and-panel split is unusable at phone width. Full detail, including what was checked and found not to need fixing, is in section 2's new "Mobile layout" subsection; summarised here.
+
+A pure CSS breakpoint at 768px switches the side-by-side desktop layout to a stacked one (map, fixed 55vh, then the full-width panel, the page scrolling as a whole instead of the panel scrolling internally); nothing above 768px changes, including in landscape, where a phone wide enough to clear it gets the ordinary desktop layout and one that is not stays stacked.
+
+Two real bugs found and fixed, both confirmed by reproducing them first, not assumed from reading the code: rotating the phone (or resizing the window) left Leaflet holding the container's pre-rotation dimensions, now fixed with a debounced `invalidateSize()` on `resize` and `orientationchange`; and the normal-day/heatwave numbers table's three `nowrap` cells were together wider than a phone's full-width panel, now restacked to label-above-value rows below 768px.
+
+Touch has no hover, so every tooltip on the page (district, storage dot, loss strip) now opens on tap and closes on tapping elsewhere, keyed to a pointer media query rather than viewport width or a user-agent sniff. Districts keep a working tap-to-drill-down by using a two-step tap (first tap previews, second tap on the same district enters it), since unlike the other two, a district's tap already had a competing action. Tap targets (build-out/AC-ownership buttons, checkboxes via their label, the drill-down back button) are confirmed at least 44px, measured, not eyeballed. The BESS overview box, which covers a large share of a 55vh map at its full height, collapses to its title by default on mobile, tap to expand.
+
+Checked and found not to need a fix: the postcode breakdown table (already narrow 2-column rows, never the wide table it looked like it might become); the loss strip's 24 blocks (still read as a colour gradient at 360px, the 12-block fallback the brief allowed was not needed).
+
+Verified in browser device emulation at 390px and 360px, portrait and landscape, including programmatic horizontal-overflow checks, not just by eye. One real limit of that emulation surfaced and is recorded in section 2: its viewport-resize mechanism does not fire a native `resize` event the way a real rotation does, so the `invalidateSize` fix was confirmed correct by dispatching that event manually, not by "rotating" the emulated device. **Real-phone testing is still needed before merging**, per the brief; not done here, it cannot be from this environment.
 
 **v3.6 (2026-09-30):** two changes, on-page branding and a real usability gap in the loss strip. This document's own title, section headers, and internal vocabulary (Stadtteil, storage, battery) are unchanged; the change below is what a visitor sees on the page, not a rename of the project.
 
@@ -115,7 +127,7 @@ Two options were considered. Apportion each PLZ's registered PV across its overl
 
 **One web page. One map. A few toggles.** A visitor opens it, sees Duesseldorf, and can answer one question: *how much rooftop solar could this city have, and what does heat and cooling demand do to that potential?* (Changed in v3.1; was "...and how much battery storage would that call for", see changelog. Storage is now a count stated plainly, three lines and dots on the map, not an argument the page makes; shifting and dispatch are permanently out of scope, v3.3.)
 
-It is a portfolio piece for hiring managers. It has to load fast on a laptop, look competent, and every number on it has to trace to a named public source. It is not a research paper, not a planning tool, and not a simulation.
+It is a portfolio piece for hiring managers. It has to load fast on a laptop and on a phone (v3.7), look competent on both, and every number on it has to trace to a named public source. It is not a research paper, not a planning tool, and not a simulation.
 
 **What the site actually models:** a scenario in which every suitable rooftop in Duesseldorf carries solar, then the heatwave PV derate and the cooling balance are applied on top of that built-out scenario. This scenario runs on the Solarkataster and ERA5 alone and needs no registry data at all (the cooling balance's own household count is the one exception, see section 4). Existing installations, from MaStR, are shown alongside as context, to compute a realization rate, never as an input to the potential model itself.
 
@@ -168,6 +180,30 @@ It is a portfolio piece for hiring managers. It has to load fast on a laptop, lo
 ```
 
 Map about 70%, panel about 30%, open by default; a "Hide" toggle collapses it to a narrow tab rather than hiding its content behind a control someone has to discover first. Text and numbers first, controls last (UX pass round three, commit 2): the answer, the numbers, the balance, storage, then every control grouped together at the bottom, so a control never feels disconnected from the numbers above it that it changes. Clicking a Stadtteil opens a panel with that neighbourhood's own numbers and the postcodes inside it. The scenario panel's controls change the panel's own numbers, never the map, which stays roof potential regardless of any control state; only its fill opacity responds to zoom, not to any panel control.
+
+**The diagram above, and everything in this section up to here, describes the layout above 768px wide.** Below that, see the subsection immediately following.
+
+### Mobile layout (below 768px, v3.7)
+
+**Why now, not from the start:** mobile was optional while this project was being built on a laptop. It stopped being optional once this started going in front of LinkedIn traffic, most of which is phones; the side-by-side 70/30 map-and-panel split is unusable at 390px wide.
+
+**A pure CSS breakpoint, no JavaScript decides it.** Below 768px wide, the side-by-side split becomes a stacked layout: map, then panel, full width each, in the same order the panel already uses above 768px (answer, numbers, controls, loss strip, then the trailing cooling balance and storage explanation). Above 768px, nothing changes, including in landscape: a landscape phone wide enough to clear 768px (an iPhone, roughly 844px landscape) gets the ordinary side-by-side layout, which suits its short, wide viewport better than a tall stack would; a landscape phone that stays under 768px (many Android phones) stays stacked. The breakpoint is on width alone, not on device type or orientation directly, which is what makes this fall out correctly without extra rules.
+
+**The map cannot stay `flex: 1` in a stacked layout.** A flex map sized against a panel that no longer scrolls internally has nothing to size itself against and collapses toward zero height. Below 768px the map gets a fixed `55vh` instead, and the page scrolls as a whole (the panel's own internal scroll, `.side-panel-content`'s `overflow-y: auto` above 768px, is disabled below it) rather than the panel scrolling in a fixed-height box while the map stays put. The "Hide" button and the collapsed side-panel state are desktop-only controls for a layout that no longer exists below 768px; the panel is always open on mobile.
+
+**Rotating the phone (or resizing the window) is now handled.** `map.invalidateSize()` is called on both `resize` and `orientationchange`, debounced 150ms so a drag-resize does not call it on every intermediate frame. Before this, Leaflet kept the container's dimensions from before the rotation until something told it to remeasure, which is a real, confirmed bug (reproduced by dispatching a `resize` event manually and watching `map.getSize()` disagree with the container's actual, already-correct DOM size until the handler runs). `fitBounds` on initial load was already fragile once at desktop width (section 2's own earlier note on why it is wrapped in `requestAnimationFrame`) and was re-verified working at both 390px and 360px, portrait and landscape.
+
+**Touch has no hover**, so every tooltip on the page (district, storage dot, the loss strip) is rewired to open on tap and close on tapping elsewhere, keyed to `@media (hover: none)` in CSS and `window.matchMedia("(hover: none)").matches` in JavaScript, not a viewport-width guess and not a user-agent sniff: a touch laptop at desktop width gets the same tap behaviour, a resized desktop browser window at phone width does not. Storage dots and the loss strip have no competing click action, so tap-opens/tap-elsewhere-closes is direct. Districts do have one (tapping drills into the Stadtteil's buildings), so touch gets a two-step version: first tap opens the tooltip only (name, possible MW, qualifying buildings), a second tap on the same, already-open district drills in, and a tap on empty map or a different district closes it (or opens the new one) instead. Desktop's hover-then-click behaviour is unchanged.
+
+**Tap targets are at least 44px**, scoped the same way, `@media (hover: none), (pointer: coarse)`: the build-out and AC-ownership buttons, the heatwave/storage-layer checkboxes (via their full label, not the 18px checkbox glyph itself, which is how a label's own click-to-toggle behaviour already works), and the drill-down's back button. Verified by measuring the rendered boxes, not by eye: 44px, 56px, and 56px respectively at 390px wide.
+
+**The BESS overview box collapses to its title by default on mobile.** At its full height (title, two checkboxes, the citywide note, which runs several lines) it covers a large share of a 55vh map on a phone; a tap on the title expands it, a second tap collapses it again. Desktop never sees this behaviour, the CSS rule that hides the box's body only exists inside the 768px breakpoint.
+
+**The normal-day/heatwave numbers table restacks to label-above-value rows below 768px.** Its three cells (a date-labelled row, an MWh value, a percent note) were all `white-space: nowrap`, correct above 768px where the panel has room, but together wider than a phone's full-width panel; confirmed by testing, not assumed. The postcode breakdown (each entry already a narrow 2-column label/value table inside a fixed-width drill-down box) turned out not to need the same fix, it was never the wide table it looked like it might be.
+
+**The loss strip's 24 blocks were checked at 360px, not just assumed to need shrinking.** They read fine as a colour gradient down to 360px; the fallback this round's brief allowed (12 blocks of two hours each) was not implemented, since testing showed it was not needed. If a narrower target device is added later, re-check before reaching for that fallback.
+
+**Verification:** tested in browser device emulation at 390px (iPhone) and 360px (common Android), both portrait and landscape, for layout, horizontal overflow (checked programmatically via `scrollWidth`/`clientWidth`, not just by eye), and every touch interaction on this page (district two-tap, storage-dot tap, loss-strip tap, BESS-box expand, drilldown back button). Emulation has a real limit, confirmed during this pass: the emulator's own viewport-resize mechanism does not dispatch a native `resize` event the way an actual device rotation does, so the `invalidateSize` fix could only be confirmed correct by dispatching that event manually, not by "rotating" the emulated device and watching it happen on its own. **Real-phone testing is still required before merging**, per the brief that asked for it; this pass could not do that from within the development environment.
 
 ## 3. The data model: one geography, postcode facts in the panel
 
@@ -485,7 +521,7 @@ None currently.
 
 ## 10. Definition of done
 
-- **Works on a laptop browser.** Phone support is welcome but not required.
+- **Works on a laptop browser and at phone width.** Mobile was optional while this was being built (v3.6 and earlier); it is required as of v3.7, since this now goes in front of LinkedIn traffic, most of which is phones, and a side-by-side map-and-panel split is unusable below 768px. See section 2's "Mobile layout" subsection.
 - A visitor who knows nothing about this can open the page, use the toggles, and leave with one sentence they could repeat to someone else.
 - Every number on the site traces to a script in this repo and a named public source.
 - **Every script runs from a clean checkout with no manual steps.** Meaning: clone the repo onto a machine that has never seen this project, run one documented command, and the data files rebuild. No "first download this ZIP by hand", no "edit line 40 to your local path", no undocumented file sitting only on one laptop. This is what makes it credible to a hiring manager, who will assume the worst if the repo cannot run.
