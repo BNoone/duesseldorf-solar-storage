@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Duesseldorf Solar + Storage Potential</title>
+  <title>D&uuml;sseldorf Solar &amp; BESS Potential</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -11,10 +11,10 @@
   <div id="app">
     <header>
       <div class="header-row">
-        <h1>Duesseldorf Solar + Storage</h1>
+        <h1>D&uuml;sseldorf Solar &amp; BESS potential</h1>
         <button type="button" id="info-button" class="info-button" aria-label="About this page" title="About this page">i</button>
       </div>
-      <p class="subtitle">If every suitable roof in Duesseldorf had solar, would it power the city? And what happens when it gets hot?</p>
+      <p class="subtitle">If every suitable roof in D&uuml;sseldorf had solar, would it be enough to power the city? And what happens when it gets hot and AC usage surges?</p>
       <div class="city-strip" id="city-strip">
         <div class="city-stat">
           <div class="city-stat-value" id="stat-potential">&hellip;</div>
@@ -128,6 +128,7 @@
             <!-- 4. The hourly loss strip -->
             <div class="loss-strip-wrap">
               <div class="loss-strip" id="loss-strip"></div>
+              <div class="loss-tooltip" id="loss-tooltip" hidden></div>
               <div class="loss-strip-hours" id="loss-strip-hours"></div>
               <div class="loss-strip-caption" id="loss-strip-caption"></div>
             </div>

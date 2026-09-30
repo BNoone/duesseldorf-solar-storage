@@ -880,8 +880,9 @@ function renderLossStrip() {
   strip.innerHTML = hourlyLossPct
     .map((pct, h) => {
       const fraction = maxLossPct > 0 ? pct / maxLossPct : 0;
-      const label = `${String(h).padStart(2, "0")}:00, ${pct.toFixed(1)}% lost to heat`;
-      return `<div class="loss-block" style="background:${lossStripColor(fraction)}" title="${label}"></div>`;
+      const mwh = formatNumber(c.hourly_derated_kwh[h] / 1000);
+      return `<div class="loss-block" style="background:${lossStripColor(fraction)}" ` +
+        `data-hour="${h}" data-loss="${pct.toFixed(1)}" data-mwh="${mwh}"></div>`;
     })
     .join("");
 
@@ -901,6 +902,46 @@ function renderLossStrip() {
     `Loss by hour, relative to the day's peak. Worst: ` +
     `${maxLossPct.toFixed(1)}% at ${String(worstHour).padStart(2, "0")}:00.`;
 }
+
+// A native title attribute was here before, which meant a long hover
+// delay and a plain system tooltip, unreadable against the rest of the
+// panel's styling. This is a proper tooltip instead, reusing the same
+// dark box the district and storage-dot hovers already use, and it
+// states what a colour actually means (loss percent) alongside what the
+// strip alone cannot show, that hour's own production. Delegated on the
+// strip's container, not on each block, since renderLossStrip() replaces
+// the blocks every time a control changes but the container itself
+// persists, so this only needs to be wired up once.
+(function setUpLossStripTooltip() {
+  const strip = document.getElementById("loss-strip");
+  const tooltip = document.getElementById("loss-tooltip");
+  const wrap = document.querySelector(".loss-strip-wrap");
+
+  strip.addEventListener("mouseover", (e) => {
+    const block = e.target.closest(".loss-block");
+    if (!block) return;
+    const hour = block.dataset.hour.padStart(2, "0");
+    tooltip.innerHTML =
+      `<div class="loss-tooltip-hour">${hour}:00</div>` +
+      `<div class="loss-tooltip-row">${block.dataset.loss}% lost to heat</div>` +
+      `<div class="loss-tooltip-row">${block.dataset.mwh} MWh produced this hour</div>`;
+    tooltip.hidden = false;
+    const blockRect = block.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const blockCenter = blockRect.left - wrapRect.left + blockRect.width / 2;
+    // Clamped so the tooltip never overflows the panel at either end of
+    // the strip (00:00 and 23:00 both sit close enough to an edge that
+    // simply centring it on the block pushed it half off-screen there).
+    const maxLeft = wrapRect.width - tooltip.offsetWidth;
+    const left = Math.max(0, Math.min(blockCenter - tooltip.offsetWidth / 2, maxLeft));
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${blockRect.top - wrapRect.top}px`;
+  });
+
+  strip.addEventListener("mouseleave", () => {
+    tooltip.hidden = true;
+  });
+})();
 
 // The cooling balance (UX pass round three, commit 3): power, not
 // energy, at the heatwave day's own afternoon peak hour. Both sides are
