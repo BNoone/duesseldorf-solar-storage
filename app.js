@@ -1,6 +1,14 @@
 const DUESSELDORF_CENTER = [51.2277, 6.7735];
 const DEFAULT_ZOOM = 12;
 
+// Pointer capability, not a viewport-width guess and not a user-agent
+// sniff: a touch laptop at desktop width still has no hover, and a
+// resized desktop browser window at phone width still does. Checked live
+// rather than cached, matching the CSS media query of the same name.
+function isTouch() {
+  return window.matchMedia("(hover: none)").matches;
+}
+
 // ColorBrewer "Oranges", 5-class sequential single-hue scale.
 const CHOROPLETH_COLORS = ["#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"];
 
@@ -43,6 +51,12 @@ let cityBounds = null;
 let buildingLayer = null;
 let storageDusLayer = null;
 let storageNrwLayer = null;
+// Shared across the district layer and both storage layers so a tap on
+// one kind of dot/shape closes whichever tooltip, of either kind, a
+// previous tap left open; see bindStorageTooltipTouch() and the district
+// onDistrictTap()/map click handlers below.
+let openDistrictTooltipLayer = null;
+let openStorageTooltipLayer = null;
 
 function slugify(name) {
   const replacements = { "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss" };
@@ -92,6 +106,18 @@ document.getElementById("panel-toggle").addEventListener("click", () => {
   setSidePanelCollapsed(!sidePanelCollapsed);
 });
 
+// BESS overview box: collapsed to its title by default on phone widths
+// (CSS only, this class has no effect above 767px), since its full body,
+// title plus two checkboxes plus the citywide note, covers a large share
+// of the shorter mobile map. Wired up unconditionally; it is a no-op on
+// desktop since the CSS rule that hides .control-panel-body only exists
+// inside that breakpoint.
+document.getElementById("control-panel-toggle").addEventListener("click", () => {
+  const panel = document.getElementById("control-panel");
+  const expanded = panel.classList.toggle("expanded");
+  document.getElementById("control-panel-toggle").setAttribute("aria-expanded", expanded);
+});
+
 // The panel's top line used to be pinned to the 100% build-out case
 // always (data/headline.json), stated once and never updated, while
 // every other number in the panel followed whatever build-out level was
@@ -106,6 +132,21 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
   maxZoom: 19,
 }).addTo(map);
+
+// Rotating a phone (or resizing the window) leaves Leaflet holding the
+// container's old dimensions until something tells it to remeasure.
+// Debounced so a drag-resize does not call this on every intermediate
+// frame; orientationchange fires once per rotation already, but its own
+// timing is inconsistent across browsers (sometimes before the browser
+// has finished laying out the rotated viewport), so it gets the same
+// short delay as the resize path rather than an immediate call.
+let resizeInvalidateTimer = null;
+function debouncedInvalidateSize() {
+  clearTimeout(resizeInvalidateTimer);
+  resizeInvalidateTimer = setTimeout(() => map.invalidateSize(), 150);
+}
+window.addEventListener("resize", debouncedInvalidateSize);
+window.addEventListener("orientationchange", debouncedInvalidateSize);
 
 function quantile(sortedValues, q) {
   const pos = (sortedValues.length - 1) * q;
@@ -422,8 +463,9 @@ fetch("data/stadtteile.json")
     // open/close can lose track of this when bringToFront() below
     // reorders the hovered path's DOM node mid-hover, so the previous
     // tooltip is closed explicitly here rather than trusted to close
-    // itself.
-    let openDistrictTooltipLayer = null;
+    // itself. openDistrictTooltipLayer itself is declared at module level
+    // (near openStorageTooltipLayer), since the storage layers' own touch
+    // handling needs to close a district tooltip too.
 
     function highlightFeature(e) {
       const layer = e.target;
@@ -441,6 +483,28 @@ fetch("data/stadtteile.json")
       if (openDistrictTooltipLayer === e.target) openDistrictTooltipLayer = null;
     }
 
+    // Touch has no hover, so mouseover/mouseout never fire meaningfully
+    // and, worse, a tap's click handler used to fire straight through to
+    // enterDrilldown() with no chance to see the tooltip's own numbers
+    // first. First tap now opens the tooltip only; a second tap on the
+    // same, already-open district drills in, matching the two-step
+    // preview-then-open pattern touch maps already use elsewhere.
+    function onDistrictTap(e, feature, layer) {
+      L.DomEvent.stopPropagation(e);
+      if (openDistrictTooltipLayer === layer) {
+        enterDrilldown(feature);
+        return;
+      }
+      if (openDistrictTooltipLayer) {
+        openDistrictTooltipLayer.setStyle(activeStyleFn(openDistrictTooltipLayer.feature));
+        openDistrictTooltipLayer.closeTooltip();
+      }
+      layer.setStyle({ weight: 3, color: "#1f2933" });
+      layer.bringToFront();
+      layer.openTooltip();
+      openDistrictTooltipLayer = layer;
+    }
+
     function onEachFeature(feature, layer) {
       // Hover tooltip on every Stadtteil: name, possible capacity, and
       // qualifying buildings, replacing the old legend, since this shows
@@ -453,9 +517,15 @@ fetch("data/stadtteile.json")
       // Click drills into the Stadtteil's buildings; its own numbers move
       // into the drilldown panel, so there is no popup here any more.
       layer.on({
-        mouseover: highlightFeature,
-        mouseout: resetFeature,
-        click: () => enterDrilldown(feature),
+        mouseover: (e) => { if (!isTouch()) highlightFeature(e); },
+        mouseout: (e) => { if (!isTouch()) resetFeature(e); },
+        click: (e) => {
+          if (isTouch()) {
+            onDistrictTap(e, feature, layer);
+          } else {
+            enterDrilldown(feature);
+          }
+        },
       });
     }
 
@@ -463,6 +533,23 @@ fetch("data/stadtteile.json")
       style: activeStyleFn,
       onEachFeature: onEachFeature,
     }).addTo(map);
+
+    // Tapping empty map, not a district or a storage dot, closes whichever
+    // tooltip a previous tap opened. A tap on a district or a storage dot
+    // itself never reaches here, their own touch handlers stop it from
+    // bubbling up.
+    map.on("click", () => {
+      if (!isTouch()) return;
+      if (openDistrictTooltipLayer) {
+        openDistrictTooltipLayer.setStyle(activeStyleFn(openDistrictTooltipLayer.feature));
+        openDistrictTooltipLayer.closeTooltip();
+        openDistrictTooltipLayer = null;
+      }
+      if (openStorageTooltipLayer) {
+        openStorageTooltipLayer.closeTooltip();
+        openStorageTooltipLayer = null;
+      }
+    });
 
     // Permanent labels on the largest Stadtteile by geographic area, so the
     // city reads as named neighbourhoods on first glance, not just on
@@ -554,6 +641,29 @@ function storageTooltipHtml(props, extraLine) {
   );
 }
 
+// Storage dots have no click action of their own (unlike districts),
+// so touch is simpler here: tap opens this dot's tooltip, closing
+// whichever one (district or storage) was open before; the shared
+// map-click-elsewhere handler below closes it again. bindTooltip's own
+// default hover behaviour is left in place for non-touch, both layers
+// already get that for free.
+function bindStorageTooltipTouch(layer) {
+  layer.on("click", (e) => {
+    if (!isTouch()) return;
+    L.DomEvent.stopPropagation(e);
+    if (openDistrictTooltipLayer) {
+      openDistrictTooltipLayer.setStyle(activeStyleFn(openDistrictTooltipLayer.feature));
+      openDistrictTooltipLayer.closeTooltip();
+      openDistrictTooltipLayer = null;
+    }
+    if (openStorageTooltipLayer && openStorageTooltipLayer !== layer) {
+      openStorageTooltipLayer.closeTooltip();
+    }
+    layer.openTooltip();
+    openStorageTooltipLayer = layer;
+  });
+}
+
 fetch("data/storage_duesseldorf.json")
   .then((res) => res.json())
   .then((data) => {
@@ -564,6 +674,7 @@ fetch("data/storage_duesseldorf.json")
           sticky: true,
           className: "stadtteil-tooltip",
         });
+        bindStorageTooltipTouch(layer);
       },
     });
     // Draw the largest (planned) unit last within the layer so it always
@@ -598,6 +709,7 @@ fetch("data/storage_nrw_large.json")
           sticky: true,
           className: "stadtteil-tooltip",
         });
+        bindStorageTooltipTouch(layer);
       },
     });
 
@@ -916,10 +1028,9 @@ function renderLossStrip() {
   const strip = document.getElementById("loss-strip");
   const tooltip = document.getElementById("loss-tooltip");
   const wrap = document.querySelector(".loss-strip-wrap");
+  let shownForBlock = null;
 
-  strip.addEventListener("mouseover", (e) => {
-    const block = e.target.closest(".loss-block");
-    if (!block) return;
+  function showTooltipForBlock(block) {
     const hour = block.dataset.hour.padStart(2, "0");
     tooltip.innerHTML =
       `<div class="loss-tooltip-hour">${hour}:00</div>` +
@@ -936,10 +1047,42 @@ function renderLossStrip() {
     const left = Math.max(0, Math.min(blockCenter - tooltip.offsetWidth / 2, maxLeft));
     tooltip.style.left = `${left}px`;
     tooltip.style.top = `${blockRect.top - wrapRect.top}px`;
+    shownForBlock = block;
+  }
+
+  function hideTooltip() {
+    tooltip.hidden = true;
+    shownForBlock = null;
+  }
+
+  strip.addEventListener("mouseover", (e) => {
+    if (isTouch()) return;
+    const block = e.target.closest(".loss-block");
+    if (block) showTooltipForBlock(block);
   });
 
   strip.addEventListener("mouseleave", () => {
-    tooltip.hidden = true;
+    if (!isTouch()) hideTooltip();
+  });
+
+  // Touch has no hover: a tap shows this block's tooltip (or hides it,
+  // tapping the same block again), and a tap anywhere outside the strip
+  // closes it, the same open-on-tap, close-elsewhere pattern used for
+  // district and storage-dot tooltips.
+  strip.addEventListener("click", (e) => {
+    if (!isTouch()) return;
+    const block = e.target.closest(".loss-block");
+    if (!block) return;
+    e.stopPropagation();
+    if (shownForBlock === block) {
+      hideTooltip();
+    } else {
+      showTooltipForBlock(block);
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (isTouch() && shownForBlock && !e.target.closest(".loss-strip-wrap")) hideTooltip();
   });
 })();
 

@@ -519,11 +519,19 @@ footer a {
 }
 
 .control-section-title {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: default;
   font-weight: 600;
   font-size: 11px;
   letter-spacing: 0.04em;
   color: #6b7280;
-  margin-bottom: 6px;
+  margin: 0 0 6px 0;
+  padding: 0;
 }
 
 .control-row {
@@ -808,5 +816,156 @@ footer a {
 .storage-block strong {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+/* Mobile layout. Below 768px, side-by-side (map + panel) becomes stacked
+   (map, then panel, full width each) and the page scrolls as a whole
+   instead of the panel scrolling internally. Above 768px nothing here
+   applies; this is a pure CSS breakpoint, no JavaScript decides it. */
+@media (max-width: 767px) {
+  #app {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .main-row {
+    flex-direction: column;
+    flex: 0 0 auto;
+  }
+
+  /* The map cannot stay flex:1 here: a flex map above a panel that no
+     longer scrolls internally has nothing to size itself against, and
+     collapses to near-zero height. A fixed viewport-relative height
+     fixes that and gives a predictable amount of map on any phone. */
+  #map {
+    flex: 0 0 55vh;
+    width: 100%;
+    height: 55vh;
+  }
+
+  .side-panel {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid #e2e0da;
+  }
+
+  /* The Hide button and the collapsed side-panel state are desktop-only
+     controls for a layout that no longer exists at this width; the panel
+     is always open on mobile and the page scrolls instead. Overriding
+     .collapsed defensively in case a resize crosses the breakpoint while
+     the panel was left collapsed from desktop width. */
+  .panel-toggle {
+    display: none;
+  }
+
+  .side-panel.collapsed {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .side-panel-content,
+  .side-panel.collapsed .side-panel-content {
+    display: block;
+    overflow-y: visible;
+  }
+
+  /* Four figures still fit two to a row at phone width; one row would
+     force each figure's own label to wrap awkwardly. */
+  .city-strip {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 22px;
+  }
+
+  /* The BESS overview box, at its full height (title, two checkboxes,
+     the citywide note, which runs several lines), covers a large share
+     of a 55vh map on a phone. Collapsed to its title by default here;
+     tapping the title expands it. Desktop never sees this class, the
+     rule that hides .control-panel-body only exists in this block. */
+  .control-panel-body {
+    display: none;
+  }
+
+  .control-panel.expanded .control-panel-body {
+    display: block;
+  }
+
+  .control-section-title {
+    cursor: pointer;
+  }
+
+  .control-panel,
+  .drilldown-panel {
+    max-width: calc(100vw - 24px);
+  }
+
+  /* The normal-day/heatwave table's three nowrap cells (a date-labelled
+     row, a 3-4 digit MWh value, and a percent note) are wider than a
+     phone's full-width panel together; restacked as label-above-value
+     rows instead of shrinking text past legibility. */
+  .ladder-table,
+  .ladder-table tbody,
+  .ladder-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .ladder-table tr {
+    padding: 8px 0;
+    border-bottom: 1px solid #ececea;
+  }
+
+  .ladder-table tr:first-child {
+    padding-top: 0;
+  }
+
+  .ladder-table tr:last-child {
+    border-bottom: none;
+  }
+
+  .ladder-table td {
+    display: block;
+    padding: 1px 0;
+    white-space: normal;
+  }
+
+  .ladder-table td.ladder-value {
+    font-size: 16px;
+  }
+
+  .ladder-table td.ladder-note {
+    padding-left: 0;
+  }
+}
+
+/* Touch targets and tooltip-trigger behaviour, keyed to pointer capability
+   rather than viewport width or a user-agent sniff: a touch laptop at
+   desktop width still needs a 44px target and a tap-opened tooltip, and a
+   narrow but mouse-driven window (a resized desktop browser) does not. */
+@media (hover: none), (pointer: coarse) {
+  .buildout-step {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  .scenario-toggle,
+  .control-row {
+    min-height: 44px;
+    padding: 6px 0;
+  }
+
+  .scenario-toggle input[type="checkbox"],
+  .control-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+
+  .back-button {
+    min-height: 44px;
+    padding: 10px 8px;
+  }
 }
 
