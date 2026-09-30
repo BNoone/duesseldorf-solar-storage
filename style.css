@@ -690,6 +690,7 @@ footer a {
 .loss-strip-wrap {
   min-width: 0;
   margin-top: 4px;
+  position: relative;
 }
 
 .loss-strip {
@@ -703,6 +704,31 @@ footer a {
 .loss-block {
   flex: 1 1 0;
   height: 100%;
+}
+
+.loss-tooltip {
+  position: absolute;
+  transform: translateY(-100%);
+  margin-top: -8px;
+  background: #1f2933;
+  color: #fff;
+  border-radius: 3px;
+  padding: 6px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.loss-tooltip-hour {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.loss-tooltip-row {
+  font-weight: 400;
+  color: #d8d5cd;
+  font-variant-numeric: tabular-nums;
 }
 
 .loss-strip-hours {

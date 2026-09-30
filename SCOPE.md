@@ -1,15 +1,21 @@
-# Duesseldorf Solar + Storage Potential Map · Scope v3.5
+# Duesseldorf Solar + Storage Potential Map · Scope v3.6
 
 **Status:** active
 **Replaces:** iteration 1 (`NRW_BESS_Screener`, now private and archived)
 **Written:** 2026-09-12
-**Amended:** 2026-09-16 (v3.5, see Changelog)
+**Amended:** 2026-09-30 (v3.6, see Changelog)
 
 Read this file at the start of every session, before anything else. If the repo and this file disagree, that gets fixed before new work starts.
 
 ---
 
 ## 0. Changelog
+
+**v3.6 (2026-09-30):** two changes, on-page branding and a real usability gap in the loss strip. This document's own title, section headers, and internal vocabulary (Stadtteil, storage, battery) are unchanged; the change below is what a visitor sees on the page, not a rename of the project.
+
+**On-page title and subtitle.** The header's `<h1>` now reads "Düsseldorf Solar & BESS potential" (was "Duesseldorf Solar + Storage"), and the subtitle now reads "If every suitable roof in Düsseldorf had solar, would it be enough to power the city? And what happens when it gets hot and AC usage surges?" (was "...would it power the city? And what happens when it gets hot?"). Both the `<h1>` and the browser tab `<title>` spell the city's name with its umlaut, Düsseldorf, in this one place; every other instance of the city's name on the page and in this repo (filenames, the repo name, code identifiers, all other on-page copy, this document) is unchanged, still the ASCII spelling this project has used throughout, so this is a display-only choice for the page's own name, not a project-wide rename.
+
+**The hourly loss strip gets a real hover tooltip.** Each coloured block previously used a plain HTML `title` attribute for its hover text, which meant the browser's own slow, unstyled system tooltip, easy to miss and inconsistent with the dark, immediate tooltips used everywhere else on the page (district hover, storage dots). Replaced with a custom tooltip, same dark styling, appearing instantly on hover instead of after the browser's own delay, and showing one more fact than the block's colour alone could: that hour's own production (MWh), not just its loss percentage. Implemented as a single shared tooltip element positioned by JavaScript, not per-block, with the position clamped to the panel's own width so it cannot overflow at either end of the strip (00:00 and 23:00 both sit close enough to an edge that naively centring the tooltip on the block pushed it half off-screen there, caught and fixed before shipping).
 
 **v3.5 (2026-09-16):** one commit, added after v3.4 shipped. The map coloured districts but nothing on screen said what the colour meant, and the hover tooltip was undiscoverable, nothing invited it. A one-line hint now sits under the header stats: "Darker districts have more rooftop solar possible. Hover one for its numbers.", with a small five-step swatch before it, rendered straight from `CHOROPLETH_COLORS` (`app.js`) so it can never show a scale the map itself does not use. No numbers, no units, not a legend block; the sentence carries the explanation, the swatch is only a visual hint. Replaces nothing else; the hover tooltips are unchanged.
 
